@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: java-concepts-doc
+    runtime: docker
+    plan: free
+    branch: main
+    healthCheckPath: /
+    envVars:
+      - key: NEON_URL
+        sync: false
+      - key: NEON_USER
+        sync: false
+      - key: NEON_PASSWORD
+        sync: false
+      - key: SPRING_PROFILES_ACTIVE
+        value: neon
