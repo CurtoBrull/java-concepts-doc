@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><title>Inicio</title></head>
+<body>
+
+<div th:replace="~{layout/main :: layout('Inicio', ~{:: #page-content})}">
+    <div id="page-content">
+
+        <div th:if="${keyword != null}" class="mb-8">
+            <h1 class="text-2xl font-bold mb-4">Resultados para "<span th:text="${keyword}"></span>"</h1>
+            <div th:if="${#lists.isEmpty(results)}" class="text-slate-500">No se encontraron conceptos.</div>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <a th:each="c : ${results}" th:href="@{/concept/{slug}(slug=${c.slug})}"
+                   class="block bg-white p-5 rounded-lg shadow hover:shadow-md transition border border-slate-200">
+                    <div class="text-xs font-semibold uppercase text-blue-600 mb-1" th:text="${c.block}"></div>
+                    <h2 class="text-lg font-semibold" th:text="${c.title}"></h2>
+                </a>
+            </div>
+        </div>
+
+        <div th:unless="${keyword != null}">
+            <div class="mb-8">
+                <h1 class="text-3xl font-bold text-slate-900">Conceptos de Java</h1>
+                <p class="text-slate-600 mt-2">Documentación práctica de junior a mid, con ejemplos de código y preguntas de entrevista.</p>
+            </div>
+
+            <div th:each="entry : ${groupedConcepts}" class="mb-10">
+                <h2 class="text-xl font-bold text-slate-800 mb-4 border-b border-slate-300 pb-2"
+                    th:text="${entry.key}">BLOQUE</h2>
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <a th:each="c : ${entry.value}" th:href="@{/concept/{slug}(slug=${c.slug})}"
+                       class="block bg-white p-5 rounded-lg shadow hover:shadow-md transition border border-slate-200 hover:border-blue-400">
+                        <h3 class="text-lg font-semibold text-slate-900" th:text="${c.title}"></h3>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>

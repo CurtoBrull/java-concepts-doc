@@ -1,0 +1,17 @@
+.env
+!.env.example
+
+# Maven
+target/
+*.jar
+*.jar.original
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+*.class
+
+# OS
+.DS_Store
+Thumbs.db

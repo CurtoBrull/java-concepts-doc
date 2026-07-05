@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:fragment="layout(title, content, blockTree)">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title} + ' · Java Concepts'">Java Concepts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex">
+
+    <!-- Sidebar -->
+    <aside class="w-72 bg-slate-900 text-white flex-shrink-0 overflow-y-auto fixed h-full sidebar">
+        <div class="p-4 border-b border-slate-700">
+            <a href="/map" class="text-xl font-bold tracking-tight block">☕ Java Concepts</a>
+        </div>
+
+        <nav class="p-4 space-y-4">
+            <!-- Search -->
+            <form action="/search" method="get" class="relative">
+                <input type="text" name="q" placeholder="Buscar..."
+                       class="w-full px-3 py-2 rounded-md text-sm bg-slate-800 border border-slate-700 focus:outline-none focus:border-blue-500 text-white placeholder-slate-400"
+                       th:value="${keyword}"/>
+            </form>
+
+            <!-- Block groups -->
+            <div th:each="blockDto : ${blockTree}" class="space-y-1">
+                <h3 class="text-xs font-bold uppercase text-slate-400 tracking-wider px-2 py-1"
+                    th:text="${blockDto.block.name().replace('_', ' ')}">Bloque</h3>
+                <ul class="space-y-0.5">
+                    <li th:each="concept : ${blockDto.concepts}">
+                        <a th:href="@{/concept/{slug}(slug=${concept.slug})}"
+                           class="block px-3 py-1.5 text-sm rounded-md hover:bg-slate-800 transition text-slate-200 font-medium"
+                           th:classappend="${concept.subConcepts.isEmpty()} ? 'opacity-50 cursor-default' : ''"
+                           th:text="${concept.title}">Concepto</a>
+                        <ul class="ml-4 border-l border-slate-700 pl-2 space-y-0.5" th:if="${!concept.subConcepts.isEmpty()}">
+                            <li th:each="sub : ${concept.subConcepts}">
+                                <a th:href="@{/subconcept/{slug}(slug=${sub.slug})}"
+                                   class="block px-3 py-1 text-sm rounded-md hover:bg-slate-800 transition text-slate-400 hover:text-white"
+                                   th:text="${sub.title}">Subconcepto</a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="flex-1 ml-72 p-8 pb-24 overflow-y-auto" th:insert="${content}"></main>
+
+    <footer class="fixed bottom-0 left-72 right-0 bg-white border-t border-slate-200 py-3 px-8 text-center text-sm text-slate-500">
+        Java Concepts Doc · Aprende Java, Spring y Spring Boot para entrevistas de trabajo
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            hljs.highlightAll();
+        });
+    </script>
+</body>
+</html>

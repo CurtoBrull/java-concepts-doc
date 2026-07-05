@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="${concept.title}">Detalle</title></head>
+<body>
+
+<div th:replace="~{layout/main :: layout(${concept.title}, ~{:: #page-content})}">
+    <div id="page-content">
+
+        <a href="/" class="text-blue-600 hover:underline text-sm">← Volver al índice</a>
+
+        <div class="mt-4 mb-6">
+            <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded uppercase"
+                  th:text="${concept.block}"></span>
+            <h1 class="text-3xl font-bold text-slate-900 mt-2" th:text="${concept.title}"></h1>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow border border-slate-200 mb-6">
+            <p class="text-slate-700 leading-relaxed whitespace-pre-line" th:text="${concept.description}"></p>
+        </div>
+
+        <div th:if="${concept.codeExample != null and !concept.codeExample.isBlank()}" class="mb-8">
+            <h2 class="text-lg font-semibold mb-3">Ejemplo de código</h2>
+            <pre class="rounded-lg overflow-x-auto"><code class="language-java" th:text="${concept.codeExample}"></code></pre>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h2 class="text-lg font-semibold text-amber-900 mb-4">Preguntas de entrevista</h2>
+            <div class="space-y-4">
+                <div th:each="q : ${concept.questions}" class="border-b border-amber-200 pb-3 last:border-0">
+                    <p class="font-semibold text-amber-900 mb-2" th:text="${q.question}">Pregunta</p>
+                    <p class="text-amber-800 text-sm leading-relaxed pl-4 border-l-2 border-amber-300" th:text="${q.answer}">Respuesta</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>

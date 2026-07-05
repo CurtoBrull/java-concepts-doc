@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="${subConcept.title}">Subconcepto</title></head>
+<body>
+
+<div th:replace="~{layout/main :: layout(${subConcept.title}, ~{:: #page-content}, ${blockTree})}">
+    <div id="page-content">
+
+        <div class="mb-6 flex items-center gap-3">
+            <a href="/map" class="text-blue-600 hover:underline text-sm flex items-center gap-1">
+                <span>←</span> Mapa
+            </a>
+            <span class="text-slate-300">/</span>
+            <a th:href="@{/concept/{slug}(slug=${subConcept.conceptSlug})}"
+               class="text-blue-600 hover:underline text-sm"
+               th:text="${subConcept.conceptTitle}">Concepto</a>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 mb-8">
+            <h1 class="text-3xl font-bold text-slate-900 mb-6" th:text="${subConcept.title}">Subconcepto</h1>
+
+            <div class="prose max-w-none">
+                <div class="text-slate-700 leading-relaxed whitespace-pre-line mb-8"
+                     th:text="${subConcept.description}">Descripción</div>
+            </div>
+        </div>
+
+        <div th:if="${subConcept.codeExample != null and !subConcept.codeExample.isBlank()}" class="mb-8">
+            <h2 class="text-lg font-semibold text-slate-800 mb-3">Ejemplo de código</h2>
+            <pre class="rounded-lg overflow-x-auto shadow-sm"><code class="language-java" th:text="${subConcept.codeExample}">Código</code></pre>
+        </div>
+
+        <div th:if="${!subConcept.questions.isEmpty()}" class="bg-amber-50 border border-amber-200 rounded-xl p-6">
+            <h2 class="text-lg font-semibold text-amber-900 mb-4">Preguntas de entrevista</h2>
+            <div class="space-y-4">
+                <div th:each="q : ${subConcept.questions}" class="border-b border-amber-200 last:border-0 pb-4 last:pb-0">
+                    <p class="font-semibold text-amber-900 mb-2" th:text="${q.question}">Pregunta</p>
+                    <p class="text-amber-800 text-sm leading-relaxed pl-4 border-l-2 border-amber-300" th:text="${q.answer}">Respuesta</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-slate-200 flex justify-between">
+            <a th:href="@{/concept/{slug}(slug=${subConcept.conceptSlug})}"
+               class="text-blue-600 hover:underline flex items-center gap-1">
+                <span>←</span> Ver todos los temas de <span th:text="${subConcept.conceptTitle}"></span>
+            </a>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>
