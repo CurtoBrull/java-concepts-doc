@@ -1091,8 +1091,215 @@ public class DataLoader implements CommandLineRunner {
                 "Devuelve Optional.empty(). No lanza excepción. Es la forma segura de buscar en colección potencialmente vacía. Debes verificar con isPresent() o usar orElse(), orElseGet(), orElseThrow().")
         );
 
+        // ===== CONCURRENCIA =====
+        Concept multithreading = concept("Multithreading", "multithreading", Block.JAVA_CORE, 12,
+            "Multithreading permite ejecutar múltiples hilos de ejecución simultáneamente dentro de un mismo proceso. En Java se implementa con Thread, Runnable, Callable y ExecutorService. Esencial para aprovechar CPUs multinúcleo y para tareas concurrentes.",
+            null,
+            cq("¿Qué es un hilo en Java?",
+                "Un hilo (thread) es un flujo independiente de ejecución dentro de un proceso. Cada hilo tiene su propia pila de llamadas pero comparte el heap con otros hilos del mismo proceso. Java soporta multithreading nativamente."),
+            cq("¿Cómo se crea un hilo?",
+                "Dos formas principales: extender Thread o implementar Runnable. La segunda es preferida porque permite heredar de otra clase y separa la tarea del mecanismo de ejecución. Desde Java 5 se recomienda usar ExecutorService en lugar de crear Threads manualmente."),
+            cq("¿Runnable vs Callable?",
+                "Runnable no devuelve resultado ni lanza checked exceptions. Callable devuelve un Future<T> y puede lanzar excepciones. Usa Callable cuando necesites resultado o manejo de errores desde el hilo.")
+        );
+        sc(multithreading, "Thread y Runnable", "thread-runnable", 1,
+            "Formas básicas de crear hilos. Implementar Runnable es más flexible. Para iniciar un hilo se llama a start(), no run(); run() ejecuta el código en el hilo actual.",
+            """
+            // Extender Thread
+            class MiHilo extends Thread {
+                @Override
+                public void run() {
+                    System.out.println("Hilo: " + Thread.currentThread().getName());
+                }
+            }
+
+            // Implementar Runnable (preferido)
+            Runnable tarea = () -> System.out.println("Hilo: " + Thread.currentThread().getName());
+            new Thread(tarea).start();
+            """,
+            q("¿start() vs run()?",
+                "start() lanza un nuevo hilo y ejecuta run() en ese hilo. run() ejecuta el código en el hilo actual como cualquier método. Llamar run() directamente no crea concurrencia."),
+            q("¿Qué es Thread.sleep()?",
+                "Pausa la ejecución del hilo actual durante un tiempo. Puede lanzar InterruptedException. No libera locks que el hilo tenga. Se usa para simular esperas o reducir uso de CPU."));
+        sc(multithreading, "ExecutorService", "executor-service", 2,
+            "ExecutorService gestiona un pool de hilos reutilizables. Evita crear y destruir hilos constantemente. Ofrece execute(), submit(), invokeAll() y shutdown().",
+            """
+            ExecutorService executor = Executors.newFixedThreadPool(4);
+
+            Future<Integer> future = executor.submit(() -> {
+                return 42;
+            });
+
+            try {
+                Integer resultado = future.get(); // bloquea hasta obtener resultado
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+
+            executor.shutdown();
+            """,
+            q("¿Qué tipos de pools existen?",
+                "newFixedThreadPool(n): n hilos fijos. newCachedThreadPool(): hilos dinámicos. newSingleThreadExecutor(): un solo hilo. newScheduledThreadPool(): tareas programadas. En producción se prefiere crear ThreadPoolExecutor manualmente para control total."),
+            q("¿Por qué shutdown() es importante?",
+                "Apaga el executor de forma ordenada, esperando a que terminen las tareas pendientes. Sin shutdown, la JVM no termina porque los hilos del pool son no daemon. Usa awaitTermination para esperar."));
+        sc(multithreading, "Callable y Future", "callable-future", 3,
+            "Callable representa una tarea que devuelve resultado. Future permite obtener ese resultado de forma asíncrona, consultar estado o cancelar la tarea.",
+            """
+            Callable<String> tarea = () -> {
+                Thread.sleep(1000);
+                return "Terminado";
+            };
+
+            Future<String> future = executor.submit(tarea);
+            if (!future.isDone()) {
+                System.out.println("Aún trabajando...");
+            }
+            String resultado = future.get(); // bloquea si no ha terminado
+            """,
+            q("¿Future.get() bloquea?",
+                "Sí, si la tarea no ha terminado. También existe get(timeout, TimeUnit) que espera un tiempo máximo. Para no bloquear, usa CompletableFuture."),
+            q("¿Cómo cancelar una tarea?",
+                "Con future.cancel(mayInterruptIfRunning). Devuelve false si ya estaba cancelada o terminada. isCancelled() indica si fue cancelada."));
+
+        Concept sincronizacion = concept("Sincronización", "sincronizacion", Block.JAVA_CORE, 13,
+            "La sincronización coordina el acceso de múltiples hilos a recursos compartidos. Java ofrece synchronized, Locks explícitos, variables volatile y clases atómicas para evitar race conditions.",
+            null,
+            cq("¿Qué es una race condition?",
+                "Situación donde el resultado depende del orden de ejecución de los hilos. Ocurre cuando varios hilos leen y escriben datos compartidos sin sincronización. Puede causar resultados inconsistentes."),
+            cq("¿Qué es synchronized?",
+                "Palabra clave que bloquea el acceso a un método o bloque de código para un solo hilo a la vez. Puede usarse en métodos de instancia (lock del objeto), métodos estáticos (lock de la clase) o bloques."),
+            cq("¿Qué es volatile?",
+                "Garantiza visibilidad de una variable entre hilos: los cambios hechos por un hilo son visibles inmediatamente para otros. No garantiza atomicidad en operaciones compuestas (como i++).")
+        );
+        sc(sincronizacion, "synchronized", "synchronized", 1,
+            "Mecanismo intrínseco de bloqueo de Java. Cuando un hilo entra en un bloque synchronized, adquiere el monitor del objeto. Otros hilos deben esperar hasta que lo libere.",
+            """
+            public class Contador {
+                private int valor = 0;
+
+                public synchronized void incrementar() {
+                    valor++;
+                }
+
+                public void incrementarBloque() {
+                    synchronized (this) {
+                        valor++;
+                    }
+                }
+            }
+            """,
+            q("¿synchronized en método estático?",
+                "Usa el monitor de la clase (Class object). Bloquea todos los métodos synchronized estáticos de esa clase, no los de instancia."),
+            q("¿Desventajas de synchronized?",
+                "No se puede interrumpir ni intentar adquirir con timeout. No permite múltiples condiciones. Para mayor flexibilidad se usan ReentrantLock o semáforos."));
+        sc(sincronizacion, "ReentrantLock y Locks", "locks", 2,
+            "Lock es una interfaz que ofrece bloqueos explícitos con más control que synchronized: tryLock con timeout, bloqueos interrumpibles y múltiples condiciones.",
+            """
+            private final ReentrantLock lock = new ReentrantLock();
+
+            public void operacion() {
+                lock.lock();
+                try {
+                    // sección crítica
+                } finally {
+                    lock.unlock();
+                }
+            }
+
+            // Intentar adquirir con timeout
+            if (lock.tryLock(2, TimeUnit.SECONDS)) {
+                try { ... } finally { lock.unlock(); }
+            }
+            """,
+            q("¿Por qué unlock() en finally?",
+                "Para garantizar que el lock se libera incluso si ocurre una excepción. Si olvidas unlock, causas deadlock."),
+            q("¿ReadWriteLock?",
+                "Permite múltiples lectores simultáneos pero solo un escritor. Útil cuando lecturas son mucho más frecuentas que escrituras. ReentrantReadWriteLock es la implementación."));
+        sc(sincronizacion, "Atomic classes", "atomic-classes", 3,
+            "Clases como AtomicInteger, AtomicLong y AtomicReference proporcionan operaciones atómicas sin bloqueos explícitos. Usan CAS (Compare-And-Swap) a nivel hardware.",
+            """
+            AtomicInteger contador = new AtomicInteger(0);
+
+            contador.incrementAndGet(); // atómico
+            contador.addAndGet(5);      // atómico
+            contador.compareAndSet(0, 1); // CAS
+            """,
+            q("¿Atomic vs synchronized?",
+                "Atomic es más ligero para operaciones simples en una variable. synchronized es más general y sirve para bloques de código complejos. Para contadores simples, AtomicInteger es preferido."),
+            q("¿Qué es CAS?",
+                "Compare-And-Swap: operación atómica que compara el valor actual con un esperado y, si coinciden, lo actualiza. Es la base de las clases atómicas y de ConcurrentHashMap."));
+        sc(sincronizacion, "Deadlock y Livelock", "deadlock", 4,
+            "Deadlock ocurre cuando dos o más hilos se bloquean mutuamente esperando recursos que el otro tiene. Livelock es similar pero los hilos siguen activos sin progresar.",
+            """
+            // Ejemplo clásico de deadlock con dos locks
+            synchronized (lockA) {
+                synchronized (lockB) { // otro hilo tiene lockB y espera lockA
+                    // ...
+                }
+            }
+            """,
+            q("¿Cómo evitar deadlock?",
+                "Adquirir locks siempre en el mismo orden. Usar tryLock con timeout. Minimizar secciones críticas. Evitar locks anidados cuando sea posible."),
+            q("¿Cómo detectar deadlock?",
+                "Con herramientas como jstack, JConsole o VisualVM. Java puede detectar deadlocks cíclicos y mostrarlos en thread dumps."));
+
+        Concept concurrenciaAvanzada = concept("Concurrencia Avanzada", "concurrencia-avanzada", Block.JAVA_CORE, 14,
+            "Java proporciona utilidades concurrentes de alto nivel: colecciones thread-safe, colas bloqueantes y CompletableFuture para composición de tareas asíncronas.",
+            null,
+            cq("¿Qué es CompletableFuture?",
+                "Clase para programación asíncrona y reactiva en Java. Permite encadenar tareas con thenApply, thenCompose, thenCombine, handle, exceptionally. Evita bloqueos con get() y callbacks."),
+            cq("¿ConcurrentHashMap vs HashMap sincronizado?",
+                "ConcurrentHashMap permite concurrencia de lecturas y un número limitado de escrituras simultáneas. Es más escalable que Collections.synchronizedMap() que bloquea todo el mapa."),
+            cq("¿Qué es una BlockingQueue?",
+                "Cola thread-safe que bloquea al productor cuando está llena y al consumidor cuando está vacía. Ideal para patrón productor-consumidor. Implementaciones: ArrayBlockingQueue, LinkedBlockingQueue, PriorityBlockingQueue.")
+        );
+        sc(concurrenciaAvanzada, "Concurrent Collections", "concurrent-collections", 1,
+            "Colecciones diseñadas para uso concurrente sin bloqueos externos. ConcurrentHashMap, CopyOnWriteArrayList, ConcurrentLinkedQueue son las más usadas.",
+            """
+            Map<String, Integer> mapa = new ConcurrentHashMap<>();
+            mapa.put("a", 1);
+            mapa.computeIfAbsent("b", k -> 2);
+
+            List<String> lista = new CopyOnWriteArrayList<>();
+            // Útil cuando hay muchas lecturas y pocas escrituras
+            """,
+            q("¿Cuándo usar CopyOnWriteArrayList?",
+                "Cuando las lecturas son mucho más frecuentes que las escrituras. Cada escritura crea una copia completa de la lista, por lo que escrituras frecuentes son costosas."),
+            q("¿ConcurrentHashMap permite null?",
+                "No, ni claves ni valores null. Si necesitas null, usa Collections.synchronizedMap(new HashMap<>()) o Wrap con Optional."));
+        sc(concurrenciaAvanzada, "BlockingQueue", "blocking-queue", 2,
+            "Cola thread-safe con operaciones bloqueantes. Implementa el patrón productor-consumidor de forma elegante y segura.",
+            """
+            BlockingQueue<String> cola = new LinkedBlockingQueue<>(10);
+
+            // Productor
+            cola.put("tarea"); // bloquea si la cola está llena
+
+            // Consumidor
+            String tarea = cola.take(); // bloquea si la cola está vacía
+            """,
+            q("¿Diferencia put/offer y take/poll?",
+                "put/take bloquean indefinidamente. offer/poll no bloquean o aceptan timeout. Usa las bloqueantes cuando el consumidor/productor debe esperar."),
+            q("¿ArrayBlockingQueue vs LinkedBlockingQueue?",
+                "ArrayBlockingQueue tiene capacidad fija y usa un array circular. LinkedBlockingQueue puede ser bounded o unbounded y usa nodos enlazados. Array es más compacto; Linked es más flexible."));
+        sc(concurrenciaAvanzada, "CompletableFuture", "completable-future", 3,
+            "Permite componer operaciones asíncronas de forma declarativa. Sustituye la complejidad de callbacks anidados y mejora la legibilidad frente a Future básico.",
+            """
+            CompletableFuture.supplyAsync(() -> obtenerUsuario(id))
+                .thenApply(usuario -> usuario.getEmail())
+                .thenCompose(email -> enviarEmailAsync(email))
+                .exceptionally(ex -> {
+                    log.error("Error: ", ex);
+                    return "fallback";
+                });
+            """,
+            q("¿thenApply vs thenCompose?",
+                "thenApply transforma el resultado de forma síncrona. thenCompose aplana un CompletableFuture devuelto por la función (evita Future<Future<T>>)."),
+            q("¿ supplyAsync usa ForkJoinPool?",
+                "Sí, por defecto usa ForkJoinPool.commonPool(). Puedes pasar tu propio Executor para controlar el pool de hilos."));
+
         // ===== PLATAFORMA JAVA =====
-        Concept plataformaJava = concept("Plataforma Java", "plataforma-java", Block.JAVA_CORE, 12,
+        Concept plataformaJava = concept("Plataforma Java", "plataforma-java", Block.JAVA_CORE, 15,
             "Java es una plataforma de desarrollo y ejecución compuesta por el lenguaje Java, el JDK, la JVM y un amplio ecosistema de librerías. Su lema 'write once, run anywhere' se basa en compilar a bytecode que ejecuta la JVM en cualquier sistema operativo.",
             null,
             cq("¿Qué es el JDK?",
@@ -1175,6 +1382,90 @@ public class DataLoader implements CommandLineRunner {
                 "Un JAR que contiene un MANIFEST.MF con Main-Class definida. Permite ejecutar la aplicación con java -jar sin especificar la clase main. Spring Boot genera JARs ejecutables con todas las dependencias empaquetadas."),
             q("¿Para qué sirve module-info.java?",
                 "Declara un módulo JPMS: su nombre, dependencias (requires), paquetes exportados (exports) y servicios. Mejora encapsulamiento, reduce tamaño de runtime con jlink y clarifica dependencias entre librerías."));
+
+        // ===== TESTING =====
+        Concept testing = concept("Testing", "testing", Block.JAVA_CORE, 16,
+            "El testing automatizado verifica que el código funciona correctamente y sigue funcionando tras cambios. En Java el estándar es JUnit 5 junto con Mockito para mocks y AssertJ para assertions expresivas.",
+            null,
+            cq("¿Qué es JUnit?",
+                "Framework de testing unitario para Java. JUnit 5 (Jupiter) es la versión actual y ofrece anotaciones como @Test, @BeforeEach, @AfterEach, @ParameterizedTest, @Nested. Es el estándar de facto en proyectos Java."),
+            cq("¿Qué es Mockito?",
+                "Framework para crear mocks (objetos simulados) en tests. Permite simular dependencias externas (BBDD, servicios, APIs) y verificar interacciones. Anotaciones comunes: @Mock, @InjectMocks, @Spy."),
+            cq("¿AssertJ vs JUnit assertions?",
+                "AssertJ ofrece assertions fluent y legibles: assertThat(lista).hasSize(2).contains('a');. JUnit assertions son más básicas. AssertJ mejora mucho la legibilidad de los tests y los mensajes de error.")
+        );
+        sc(testing, "JUnit 5", "junit-5", 1,
+            "JUnit 5 (Jupiter) es la plataforma de testing moderna. Soporta tests anidados, parametrizados, de excepciones, extensiones y ciclo de vida claro.",
+            """
+            @SpringBootTest
+            class CalculadoraTest {
+
+                @BeforeEach
+                void setUp() {
+                    calculadora = new Calculadora();
+                }
+
+                @Test
+                void debeSumarDosNumeros() {
+                    int resultado = calculadora.sumar(2, 3);
+                    assertEquals(5, resultado);
+                }
+
+                @Test
+                void debeLanzarExcepcionConDivisorCero() {
+                    assertThrows(ArithmeticException.class, () -> calculadora.dividir(1, 0));
+                }
+            }
+            """,
+            q("¿@BeforeEach vs @BeforeAll?",
+                "@BeforeEach se ejecuta antes de cada test. @BeforeAll se ejecuta una sola vez antes de todos los tests de la clase y debe ser estático. Equivalentes a @AfterEach y @AfterAll para limpieza."),
+            q("¿Qué son los tests parametrizados?",
+                "Permiten ejecutar el mismo test con diferentes datos. Usan @ParameterizedTest con @ValueSource, @CsvSource o @MethodSource. Reducen duplicación y aumentan cobertura."));
+        sc(testing, "Mockito", "mockito", 2,
+            "Mockito crea objetos simulados para aislar la clase bajo test. Permite definir comportamiento con when/thenReturn y verificar interacciones con verify.",
+            """
+            @ExtendWith(MockitoExtension.class)
+            class PedidoServiceTest {
+
+                @Mock
+                private PedidoRepository repository;
+
+                @InjectMocks
+                private PedidoService service;
+
+                @Test
+                void debeCrearPedido() {
+                    when(repository.save(any(Pedido.class)))
+                        .thenReturn(new Pedido(1L));
+
+                    Pedido resultado = service.crear(new PedidoDTO());
+
+                    assertNotNull(resultado.getId());
+                    verify(repository, times(1)).save(any(Pedido.class));
+                }
+            }
+            """,
+            q("¿@Mock vs @Spy?",
+                "@Mock crea un objeto simulado completamente. @Spy envuelve una instancia real: por defecto llama a los métodos reales, pero puedes stubbear algunos."),
+            q("¿verify qué hace?",
+                "Comprueba que se llamó a un método del mock con los argumentos esperados. Ejemplos: verify(repo).save(pedido); verify(repo, never()).delete(any()); verify(repo, times(2)).findById(anyLong())."));
+        sc(testing, "AssertJ", "assertj", 3,
+            "Librería de assertions fluent que mejora la legibilidad de los tests. Ofrece mensajes de error claros y soporta colecciones, Optional, excepciones y más.",
+            """
+            import static org.assertj.core.api.Assertions.assertThat;
+            import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+            assertThat(usuario.getNombre()).isEqualTo("Ana");
+            assertThat(lista).hasSize(3).contains("a", "b").doesNotContain("z");
+
+            assertThatThrownBy(() -> service.procesar(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no puede ser null");
+            """,
+            q("¿Ventajas de AssertJ sobre assertEquals?",
+                "Mensajes de error más descriptivos, API fluida y descubrible, mejor manejo de colecciones y tipos complejos. El orden de parámetros es más intuitivo (actual primero)."),
+            q("¿AssertJ funciona con JUnit 5?",
+                "Sí, es totalmente compatible. Puedes mezclar assertions de JUnit y AssertJ en el mismo test. Muchos proyectos usan AssertJ exclusivamente para assertions."));
 
         // ===== SPRING =====
         Concept springFramework = concept("Spring Framework", "spring-framework", Block.SPRING, 1,
@@ -1590,6 +1881,116 @@ public class DataLoader implements CommandLineRunner {
                 "1) Auto-configuración basada en classpath. 2) Starters que agrupan dependencias compatibles. 3) Servidor embebido (sin desplegar WAR). 4) Configuración externalizada y perfiles. 5) Spring Initializr para scaffolding. 6) Actuator para monitoreo. 7) Menos código de configuración y más rápido time-to-market.")
         );
 
+        // ===== SPRING BOOT TESTING =====
+        Concept springBootTesting = concept("Spring Boot Testing", "spring-boot-testing", Block.SPRING_BOOT, 2,
+            "Spring Boot proporciona anotaciones de test que levantan solo las partes del contexto necesarias. Permite probar capas de la aplicación de forma aislada y realista sin depender de un servidor externo.",
+            null,
+            cq("¿Qué es @SpringBootTest?",
+                "Levanta el contexto completo de Spring Boot. Es el test más pesado porque carga toda la aplicación. Úsalo para tests de integración que necesitan múltiples capas (controller + service + repository)."),
+            cq("¿Qué es @WebMvcTest?",
+                "Levanta solo la capa web (controllers, filters, converters). No carga servicios ni repositorios reales; inyectas mocks con @MockBean. Ideal para tests unitarios de controllers HTTP."),
+            cq("¿Qué es @DataJpaTest?",
+                "Levanta solo la capa de persistencia JPA. Configura una base de datos en memoria (H2 por defecto), ejecuta @EntityScan y crea los repositories. No carga controllers ni services."));
+        sc(springBootTesting, "@SpringBootTest", "springboottest", 1,
+            "Test de integración que carga el contexto completo. Útil para probar endpoints reales, flujos completos y configuración de beans.",
+            """
+            @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+            class MiAppIntegrationTest {
+
+                @LocalServerPort
+                private int port;
+
+                @Autowired
+                private TestRestTemplate restTemplate;
+
+                @Test
+                void healthEndpointDevuelveUp() {
+                    String url = "http://localhost:" + port + "/actuator/health";
+                    ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+                    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+                }
+            }
+            """,
+            q("¿WebEnvironment.RANDOM_PORT para qué sirve?",
+                "Evita conflictos de puerto si ejecutas tests en paralelo o si el 8080 está ocupado. Asigna un puerto aleatorio y lo inyecta con @LocalServerPort."),
+            q("¿@SpringBootTest es lento?",
+                "Sí, porque carga todo el contexto. Para tests rápidos de una sola capa, usa @WebMvcTest, @DataJpaTest o tests unitarios puros con Mockito. Reserva @SpringBootTest para integración."));
+        sc(springBootTesting, "@WebMvcTest", "webmvctest", 2,
+            "Test aislado de controllers Spring MVC. Carga solo beans web; dependencias se mockean con @MockBean. Usa MockMvc para simular peticiones HTTP.",
+            """
+            @WebMvcTest(ClienteController.class)
+            class ClienteControllerTest {
+
+                @Autowired
+                private MockMvc mockMvc;
+
+                @MockBean
+                private ClienteService clienteService;
+
+                @Test
+                void debeDevolverClientePorId() throws Exception {
+                    when(clienteService.obtener(1L))
+                        .thenReturn(new ClienteDTO(1L, "Ana"));
+
+                    mockMvc.perform(get("/api/clientes/1"))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.nombre").value("Ana"));
+                }
+            }
+            """,
+            q("¿MockMvc qué es?",
+                "Clase de Spring Test para simular peticiones HTTP y verificar respuestas sin levantar un servidor real. Permite probar controllers de forma rápida y determinista."),
+            q("¿@MockBean vs @Mock?",
+                "@MockBean crea un mock y lo registra en el contexto de Spring, reemplazando el bean real. @Mock es de Mockito y no interactúa con el contexto de Spring. En @WebMvcTest usa @MockBean."));
+        sc(springBootTesting, "@DataJpaTest", "datajpatest", 3,
+            "Test de la capa de persistencia. Configura automáticamente H2, JPA y repositories. Permite verificar queries, mappings y transacciones.",
+            """
+            @DataJpaTest
+            class ClienteRepositoryTest {
+
+                @Autowired
+                private ClienteRepository repository;
+
+                @Test
+                void debeGuardarYRecuperarCliente() {
+                    Cliente c = new Cliente(null, "Ana", "ana@mail.com");
+                    Cliente guardado = repository.save(c);
+
+                    Optional<Cliente> encontrado = repository.findById(guardado.getId());
+
+                    assertThat(encontrado).isPresent();
+                    assertThat(encontrado.get().getNombre()).isEqualTo("Ana");
+                }
+            }
+            """,
+            q("¿@DataJpaTest carga toda la app?",
+                "No. Carga solo configuración JPA, repositories y una BD en memoria. No levanta controllers ni services. Es mucho más rápido que @SpringBootTest."),
+            q("¿Cómo usar BD real con @DataJpaTest?",
+                "Puedes deshabilitar el autoconfigurado de H2 con @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) y apuntar a una BD real mediante @TestPropertySource."));
+        sc(springBootTesting, "Testcontainers", "testcontainers", 4,
+            "Librería que levanta contenedores Docker reales para tests de integración. Permite probar contra PostgreSQL, Redis, Kafka, etc., en lugar de mocks o H2.",
+            """
+            @Testcontainers
+            @SpringBootTest
+            class IntegrationTest {
+
+                @Container
+                static PostgreSQLContainer<?> postgres =
+                    new PostgreSQLContainer<>("postgres:15");
+
+                @DynamicPropertySource
+                static void configureProperties(DynamicPropertyRegistry registry) {
+                    registry.add("spring.datasource.url", postgres::getJdbcUrl);
+                    registry.add("spring.datasource.username", postgres::getUsername);
+                    registry.add("spring.datasource.password", postgres::getPassword);
+                }
+            }
+            """,
+            q("¿Ventajas de Testcontainers?",
+                "Tests contra la misma tecnología que producción (PostgreSQL real vs H2). Detecta problemas de dialecto SQL, constraints y comportamientos específicos de la BD."),
+            q("¿Requisitos para Testcontainers?",
+                "Necesita Docker instalado y disponible. En CI/CD debe haber soporte para Docker-in-Docker o un runner con Docker. No funciona en entornos sin Docker."));
+
         // ===== JPA / HIBERNATE =====
         Concept jpa = concept("JPA", "jpa", Block.JPA_HIBERNATE, 1,
             "Java Persistence API es la especificación estándar de Java para mapeo objeto-relacional (ORM). Define entidades, EntityManager, JPQL, transacciones y criterios de consulta. Implementaciones populares: Hibernate, EclipseLink, OpenJPA. Spring Data JPA facilita su uso.",
@@ -1775,15 +2176,938 @@ public class DataLoader implements CommandLineRunner {
             q("¿Qué pasa con removed al hacer commit?",
                 "Hibernate ejecuta DELETE en la base de datos. Si haces rollback, la entidad vuelve a estar detached. No puedes usar persist sobre una entidad removed; necesitas crear una nueva instancia."));
 
+        // ===== CLEAN CODE / SOLID =====
+        Concept solid = concept("SOLID", "solid", Block.CLEAN_CODE_SOLID, 1,
+            "SOLID es un acrónimo de cinco principios de diseño orientado a objetos que ayudan a crear software mantenible, escalable y fácil de testear. Fueron popularizados por Robert C. Martin (Uncle Bob).",
+            null,
+            cq("¿Qué es SOLID?",
+                "Conjunto de cinco principios de diseño: Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation y Dependency Inversion. Su objetivo es reducir acoplamiento, aumentar cohesión y facilitar el mantenimiento del código."),
+            cq("¿Por qué importa SOLID en entrevistas?",
+                "Es una de las preguntas teóricas más comunes en entrevistas Java/Spring. Los revisores suelen pedir ejemplos de cada principio y cómo se aplican en el día a día (inyección de dependencias, interfaces pequeñas, etc.)."),
+            cq("¿SOLID aplica solo a POO?",
+                "Está pensado para orientación a objetos, pero sus ideas (responsabilidad única, abstracción, inversión de dependencias) son aplicables a otros paradigmas. En Java se ven claramente con clases, interfaces e inyección de dependencias.")
+        );
+        sc(solid, "Single Responsibility Principle", "single-responsibility", 1,
+            "Cada clase debe tener una única razón para cambiar. Si una clase hace demasiadas cosas, se vuelve difícil de mantener, testear y reutilizar.",
+            """
+            // Mal: una clase que gestiona cliente Y envía emails Y guarda en BBDD
+            public class ClienteService {
+                public void guardar(Cliente c) { ... }
+                public void enviarEmail(Cliente c) { ... }
+                public void loggear(Cliente c) { ... }
+            }
+
+            // Bien: responsabilidades separadas
+            public class ClienteService { ... }
+            public class EmailService { ... }
+            public class ClienteRepository { ... }
+            """,
+            q("¿Cómo detectar que violas SRP?",
+                "Si una clase tiene múltiples grupos de métodos que cambian por razones distintas, o si el nombre contiene 'And'/'Or', probablemente viola SRP. También si necesitas importar muchas librerías no relacionadas."),
+            q("¿SRP vs separación de capas?",
+                "SRP es a nivel de clase. La separación en capas (controller, service, repository) es una forma común de aplicarlo, pero dentro de una capa también puedes tener clases con múltiples responsabilidades."));
+        sc(solid, "Open/Closed Principle", "open-closed", 2,
+            "Las entidades de software deben estar abiertas para extensión pero cerradas para modificación. En Java se logra con interfaces, clases abstractas y polimorfismo.",
+            """
+            // Extensión sin modificar la lógica existente
+            public interface Descuento {
+                BigDecimal aplicar(BigDecimal precio);
+            }
+
+            public class DescuentoNavidad implements Descuento { ... }
+            public class DescuentoEstudiante implements Descuento { ... }
+
+            public class CalculadoraPrecio {
+                public BigDecimal calcular(Descuento descuento, BigDecimal precio) {
+                    return descuento.aplicar(precio);
+                }
+            }
+            """,
+            q("¿OCP significa nunca modificar código?",
+                "No. Significa que el comportamiento existente no debería romperse al añadir funcionalidad. A veces es necesario refactorizar, pero el objetivo es minimizar el riesgo de cambios."),
+            q("¿Cómo aplica OCP en Spring?",
+                "Con inyección de dependencias e interfaces. Puedes añadir nuevas implementaciones de un bean sin tocar el código que lo consume, usando @Primary, @Qualifier o listas de beans."));
+        sc(solid, "Liskov Substitution Principle", "liskov-substitution", 3,
+            "Las clases hijas deben poder sustituir a sus clases padres sin alterar el comportamiento correcto del programa. Es decir, un subtipo debe ser usable donde se espera el supertipo.",
+            """
+            // Violación: Rectangle/Square clásica
+            public class Rectangulo {
+                public void setAncho(int a) { ... }
+                public void setAlto(int h) { ... }
+            }
+
+            public class Cuadrado extends Rectangulo {
+                // Si ancho y alto siempre son iguales, rompe expectativas de Rectangulo
+            }
+            """,
+            q("¿Qué problemas causa violar LSP?",
+                "Código que funciona con la clase padre falla con la hija. Check de instancias con instanceof, excepciones inesperadas en overrides y precondiciones más fuertes son señales de violación."),
+            q("¿Cómo evitar violar LSP?",
+                "Favorecer composición sobre herencia. Si la relación 'es-un' no es perfecta, usa composición. También seguir el contrato del padre: no reforzar precondiciones ni debilitar postcondiciones."));
+        sc(solid, "Interface Segregation Principle", "interface-segregation", 4,
+            "Es preferible tener muchas interfaces pequeñas y específicas que una interfaz grande y general. Los clientes no deberían depender de métodos que no usan.",
+            """
+            // Mal: una interfaz gigante
+            public interface Trabajador {
+                void trabajar();
+                void comer();
+                void dormir();
+                void programar();
+            }
+
+            // Bien: interfaces pequeñas
+            public interface Trabajador { void trabajar(); }
+            public interface Programador { void programar(); }
+            public interface Humano { void comer(); void dormir(); }
+            """,
+            q("¿Relación con ISP en Java?",
+                "Java 8 facilita ISP con default methods y static methods en interfaces. Puedes evitar clases abstractas monolíticas y ofrecer contratos pequeños."),
+            q("¿Cómo detectar violación de ISP?",
+                "Clases que implementan interfaces y dejan métodos vacíos o lanzan UnsupportedOperationException. Significa que la interfaz es demasiado grande para ese cliente."));
+        sc(solid, "Dependency Inversion Principle", "dependency-inversion", 5,
+            "Los módulos de alto nivel no deben depender de módulos de bajo nivel; ambos deben depender de abstracciones. En Java se implementa con interfaces e inyección de dependencias.",
+            """
+            // Alto nivel depende de abstracción, no de implementación concreta
+            public interface Notificador {
+                void enviar(String mensaje);
+            }
+
+            public class ServicioPedido {
+                private final Notificador notificador;
+
+                public ServicioPedido(Notificador notificador) {
+                    this.notificador = notificador;
+                }
+            }
+
+            // Spring inyecta la implementación concreta
+            @Service
+            public class EmailNotificador implements Notificador { ... }
+            """,
+            q("¿DIP vs inyección de dependencias?",
+                "DIP es el principio: depender de abstracciones. La inyección de dependencias es una técnica para aplicarlo. Spring usa inyección por constructor para facilitar DIP."),
+            q("¿Por qué new viola DIP?",
+                "Cuando creas una instancia concretacon new dentro de una clase, el módulo de alto nivel queda acoplado a una implementación. Usar interfaces + inyección desacopla y facilita tests con mocks."));
+
+        Concept cleanCode = concept("Clean Code", "clean-code", Block.CLEAN_CODE_SOLID, 2,
+            "Clean Code son prácticas para escribir código legible, mantenible y fácil de entender. No es solo formato: es nombres claros, funciones pequeñas, manejo adecuado de errores y evitar duplicación.",
+            null,
+            cq("¿Qué es Clean Code?",
+                "Código que es fácil de leer, entender y modificar. Prioriza claridad sobre cleverness. Reglas básicas: nombres descriptivos, funciones cortas, una sola responsabilidad, sin comentarios obvios, manejo de errores explícito."),
+            cq("¿Cómo nombrar bien variables y métodos?",
+                "Usa nombres que revelen intención. Evita abreviaturas crípticas. Métodos deberían ser verbos o frases verbales. Variables booleanas con prefijo is/has/should. Clases con sustantivos."),
+            cq("¿Qué es código duplicado?",
+                "Tener la misma lógica en varios lugares. SOLucion: extraer a métodos, clases o utilidades compartidas. La regla DRY (Don't Repeat Yourself) promueve eliminar duplicación.")
+        );
+        sc(cleanCode, "Nombres con significado", "nombres-significativos", 1,
+            "Los nombres son la base de la legibilidad. Deben revelar intención, evitar desinformación y ser pronunciables. Un buen nombre reduce la necesidad de comentarios.",
+            """
+            // Mal
+            int d; // días de trabajo
+            List<int[]> theList;
+
+            // Bien
+            int diasTrabajados;
+            List<Celda> celdasDelTablero;
+
+            // Métodos: verbo + contexto
+            public int calcularDiasRestantes(LocalDate inicio, LocalDate fin) { ... }
+            """,
+            q("¿Convenciones de nombres en Java?",
+                "Classes y interfaces: PascalCase. Métodos y variables: camelCase. Constantes: SCREAMING_SNAKE_CASE. Paquetes: minúsculas invertidas. Nombres de tests descriptivos: shouldReturnErrorWhenEmailInvalid."),
+            q("¿Evitar comentarios con buenos nombres?",
+                "Sí. Si necesitas un comentario para explicar qué hace una variable, probablemente el nombre es malo. Los comentarios deben explicar por qué, no qué."));
+        sc(cleanCode, "Funciones pequeñas", "funciones-pequenas", 2,
+            "Las funciones deben hacer una sola cosa y hacerla bien. Preferir pocas líneas, pocos argumentos y un único nivel de abstracción. Facilitan tests y reutilización.",
+            """
+            // Mal: función larga y multipropósito
+            public void procesarPedido(Pedido p) {
+                validar(p);
+                calcularTotal(p);
+                guardar(p);
+                enviarEmail(p);
+                actualizarStock(p);
+            }
+
+            // Bien: función orquestadora que delega
+            public void procesarPedido(Pedido p) {
+                validador.validar(p);
+                calculador.calcularTotal(p);
+                pedidoRepository.save(p);
+                notificador.notificar(p);
+                stockService.actualizar(p);
+            }
+            """,
+            q("¿Cuántos argumentos debe tener una función?",
+                "Idealmente cero, uno o dos. Más de tres obliga a pensar en un objeto parameter. Si hay varios argumentos relacionados, agrúpalos en un DTO o record."),
+            q("¿Qué significa 'una sola cosa'?",
+                "Una función no debe mezclar niveles de abstracción. No debe a la vez parsear input, validar reglas de negocio y llamar a base de datos. Cada función opera en un nivel."));
+        sc(cleanCode, "Manejo de errores", "manejo-errores", 3,
+            "El manejo de errores debe ser claro y separado de la lógica de negocio. Usar excepciones en lugar de códigos de error, evitar null como valor de retorno y preferir Optional o excepciones específicas.",
+            """
+            // Mal: retornar null y obligar a if everywhere
+            public Cliente buscar(Long id) {
+                return repo.findById(id).orElse(null);
+            }
+
+            // Bien: Optional o excepción de dominio
+            public Optional<Cliente> buscar(Long id) {
+                return repo.findById(id);
+            }
+
+            public Cliente buscarOExcepcion(Long id) {
+                return repo.findById(id)
+                    .orElseThrow(() -> new ClienteNotFoundException(id));
+            }
+            """,
+            q("¿Por qué evitar null?",
+                "Null causa NullPointerException. Tony Hoare lo llamó su 'error de mil millones de dólares'. Usa Optional, objetos Null Object o excepciones para indicar ausencia."),
+            q("¿Checked vs unchecked exceptions en Clean Code?",
+                "Preferir unchecked para errores de programación. Checked exceptions rompen el principio de abrir/cerrar porque todos los métodos intermedios deben declararlas. Usa excepciones de dominio unchecked."));
+        sc(cleanCode, "Código duplicado y DRY", "codigo-duplicado", 4,
+            "DRY (Don't Repeat Yourself) busca que cada pieza de conocimiento tenga una única representación autoritativa. Duplicar lógica genera inconsistencias cuando hay que cambiarla.",
+            """
+            // Antes: validación repetida en controller y service
+            if (email == null || !email.contains("@")) {
+                throw new IllegalArgumentException("Email inválido");
+            }
+
+            // Después: validador reutilizable
+            @Component
+            public class ValidadorEmail {
+                public void validar(String email) {
+                    if (email == null || !email.contains("@")) {
+                        throw new EmailInvalidoException(email);
+                    }
+                }
+            }
+            """,
+            q("¿DRY vs WET?",
+                "WET = Write Everything Twice o We Enjoy Typing. Es lo opuesto a DRY. Un poco de duplicación puede ser aceptable si reduce acoplamiento indebido, pero la regla general es evitarla."),
+            q("¿Cómo eliminar duplicación sin crear dependencias raras?",
+                "Extraer a clases utilitarias o servicios de dominio compartidos. Si la lógica es de infraestructura, usa utils. Si es de negocio, crea un servicio con responsabilidad clara."));
+
+        // ===== TOOLS =====
+        Concept maven = concept("Maven", "maven", Block.TOOLS, 1,
+            "Maven es una herramienta de gestión y construcción de proyectos Java. Usa un modelo basado en POM (Project Object Model) para definir dependencias, plugins, ciclo de vida y metas del proyecto.",
+            null,
+            cq("¿Qué es Maven?",
+                "Herramienta de build para Java que automatiza compilación, tests, empaquetado y despliegue. Gestiona dependencias descargándolas de repositorios remotos como Maven Central. Su fichero central es pom.xml."),
+            cq("¿Qué es el POM?",
+                "Project Object Model: fichero XML que describe el proyecto. Define groupId, artifactId, version, dependencias, plugins, propiedades y perfil. Es el corazón de Maven."),
+            cq("¿Qué es Maven Central?",
+                "Repositorio remoto público donde se alojan librerías Java. Maven descarga automáticamente dependencias declaradas en pom.xml y las cachea en ~/.m2/repository."));
+        sc(maven, "pom.xml básico", "pom-basico", 1,
+            "Estructura mínima del descriptor de proyecto Maven. Define identificador, dependencias, plugin de compilación y versión de Java.",
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+                <modelVersion>4.0.0</modelVersion>
+                <groupId>com.ejemplo</groupId>
+                <artifactId>mi-app</artifactId>
+                <version>1.0.0</version>
+                <packaging>jar</packaging>
+
+                <properties>
+                    <maven.compiler.source>21</maven.compiler.source>
+                    <maven.compiler.target>21</maven.compiler.target>
+                </properties>
+
+                <dependencies>
+                    <dependency>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-starter-web</artifactId>
+                        <version>3.3.5</version>
+                    </dependency>
+                </dependencies>
+            </project>
+            """,
+            q("¿Para qué sirve groupId, artifactId, version?",
+                "Identifican únicamente un artefacto Maven. groupId es el namespace de la organización, artifactId el nombre del proyecto, version la versión. Juntos forman las coordenadas GAV."),
+            q("¿Qué es packaging?",
+                "Indica el formato de salida: jar, war, pom. jar para aplicaciones standalone o librerías. war para aplicaciones web tradicionales desplegadas en servidor externo. pom para proyectos padre/agregadores."));
+        sc(maven, "Ciclo de vida y fases", "ciclo-vida-maven", 2,
+            "Maven define ciclos de vida con fases ordenadas. Las principales son validate, compile, test, package, verify, install, deploy. Cada fase ejecuta los goals de plugins asociados.",
+            """
+            # Fases comunes
+            mvn clean          # limpia target/
+            mvn compile        # compila fuentes
+            mvn test           # ejecuta tests
+            mvn package        # empaqueta en jar/war
+            mvn install        # instala en repositorio local
+            mvn deploy         # publica en repositorio remoto
+
+            # Saltar tests
+            mvn package -DskipTests
+            """,
+            q("¿clean es una fase?",
+                "No, clean es un ciclo de vida independiente con su propia fase clean. Por eso se ejecuta como mvn clean package: primero limpia, luego ejecuta el ciclo de vida default hasta package."),
+            q("¿Fase vs goal?",
+                "Fase es una etapa del ciclo de vida (ej: test). Goal es una tarea específica de un plugin (ej: surefire:test). Una fase puede ejecutar varios goals; un goal puede llamarse directamente con mvn plugin:goal."));
+        sc(maven, "Dependencias y scopes", "dependencias-maven", 3,
+            "Maven gestiona dependencias transitivas. Los scopes definen en qué fases se usan: compile, provided, runtime, test, optional.",
+            """
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>1.18.30</version>
+                <scope>provided</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>42.7.4</version>
+                <scope>runtime</scope>
+            </dependency>
+            """,
+            q("¿Qué es una dependencia transitiva?",
+                "Si tu proyecto depende de A, y A depende de B, Maven trae B automáticamente. Puedes excluir transitivas con <exclusions> si causan conflictos de versiones."),
+            q("¿Scope test vs provided?",
+                "test: solo disponible para compilación y ejecución de tests. provided: necesaria para compilar pero proporcionada por el runtime (ej: servlet-api en un Tomcat externo, Lombok). runtime: no necesaria para compilar, sí para ejecutar (ej: driver JDBC)."));
+
+        // ===== DESIGN PATTERNS =====
+        Concept designPatterns = concept("Design Patterns", "design-patterns", Block.JAVA_CORE, 17,
+            "Los patrones de diseño son soluciones probadas a problemas comunes de diseño de software. No son librerías ni código copiable, sino plantillas que adaptas a tu contexto.",
+            null,
+            cq("¿Qué son los Design Patterns?",
+                "Soluciones reutilizables a problemas recurrentes en diseño de software. Se clasifican en creacionales, estructurales y de comportamiento. Facilitan comunicación entre desarrolladores y mejoran mantenibilidad."),
+            cq("¿Cuáles son los más preguntados en entrevistas?",
+                "Singleton, Factory, Strategy, Observer, Repository, Builder, Dependency Injection (no es GoF pero se considera patrón). Spring implementa muchos patrones: Singleton (scope default), Factory (BeanFactory), Proxy (AOP), Template (JdbcTemplate)."),
+            cq("¿Patrones creacionales vs estructurales vs comportamiento?",
+                "Creacionales: cómo crear objetos (Singleton, Factory, Builder). Estructurales: cómo componer clases y objetos (Adapter, Decorator, Proxy). Comportamiento: cómo interactúan objetos (Strategy, Observer, Command)."));
+        sc(designPatterns, "Singleton", "singleton", 1,
+            "Garantiza una única instancia de una clase y proporciona un punto de acceso global. En Spring, los beans singleton son el scope por defecto.",
+            """
+            public class Configuracion {
+                private static Configuracion instancia;
+
+                private Configuracion() {}
+
+                public static synchronized Configuracion getInstancia() {
+                    if (instancia == null) {
+                        instancia = new Configuracion();
+                    }
+                    return instancia;
+                }
+            }
+
+            // Mejor con enum (thread-safe, anti-reflection)
+            public enum ConfiguracionEnum {
+                INSTANCE;
+            }
+            """,
+            q("¿Problemas del Singleton?",
+                "Dificulta testing (acoplamiento global), puede ocultar dependencias y causar problemas en entornos concurrentes si no es thread-safe. En Spring el singleton está bien gestionado por el contenedor."),
+            q("¿Enum como Singleton?",
+                "Joshua Bloch recomienda usar enum para singletons. Es serializable, thread-safe y evita ataques por reflection. Es la forma más robusta en Java."));
+        sc(designPatterns, "Factory", "factory", 2,
+            "Delega la creación de objetos a una clase factory en lugar de usar new directamente. Facilita añadir nuevas implementaciones sin modificar el código cliente.",
+            """
+            public interface Notificador {
+                void enviar(String mensaje);
+            }
+
+            public class NotificadorFactory {
+                public static Notificador crear(String tipo) {
+                    return switch (tipo) {
+                        case "email" -> new EmailNotificador();
+                        case "sms" -> new SmsNotificador();
+                        default -> throw new IllegalArgumentException();
+                    };
+                }
+            }
+            """,
+            q("¿Factory vs Builder?",
+                "Factory decide qué objeto crear. Builder construye un objeto complejo paso a paso. Factory method crea familias de objetos; Builder configura un solo objeto con muchos parámetros."),
+            q("¿Dónde se usa Factory en Spring?",
+                "BeanFactory y ApplicationContext actúan como factories de beans. También @Bean en @Configuration crea beans mediante factory method."));
+        sc(designPatterns, "Strategy", "strategy", 3,
+            "Define una familia de algoritmos, encapsula cada uno y los hace intercambiables. Permite cambiar comportamiento en tiempo de ejecución.",
+            """
+            public interface EstrategiaDescuento {
+                BigDecimal aplicar(BigDecimal total);
+            }
+
+            public class DescuentoNavidad implements EstrategiaDescuento { ... }
+            public class DescuentoEstudiante implements EstrategiaDescuento { ... }
+
+            public class CalculadoraPrecio {
+                public BigDecimal calcular(EstrategiaDescuento estrategia, BigDecimal total) {
+                    return estrategia.aplicar(total);
+                }
+            }
+            """,
+            q("¿Strategy vs Polimorfismo?",
+                "Strategy es una aplicación concreta de polimorfismo. Encapsula algoritmos intercambiables detrás de una interfaz común. Reduce if/else y switch."),
+            q("¿Ejemplo en Spring?",
+                "Inyección de dependencias por interfaz es Strategy. Elige la implementación con @Primary, @Qualifier o listas de beans según el contexto."));
+        sc(designPatterns, "Observer", "observer", 4,
+            "Define una dependencia uno-a-muchos entre objetos. Cuando el sujeto cambia, notifica automáticamente a todos los observadores. En Spring se implementa con ApplicationEvents.",
+            """
+            // Evento
+            public record PedidoCreadoEvent(Long pedidoId) {}
+
+            // Publicador
+            @Service
+            public class PedidoService {
+                private final ApplicationEventPublisher publisher;
+
+                public void crearPedido() {
+                    // ...
+                    publisher.publishEvent(new PedidoCreadoEvent(1L));
+                }
+            }
+
+            // Observador
+            @EventListener
+            public void onPedidoCreado(PedidoCreadoEvent event) { ... }
+            """,
+            q("¿Observer vs Pub/Sub?",
+                "Observer es un patrón de diseño orientado a objetos. Pub/Sub es una arquitectura más desacoplada con un broker intermediario (Kafka, RabbitMQ). Observer suele ser in-process."),
+            q("¿@EventListener es asíncrono?",
+                "Por defecto es síncrono. Para hacerlo asíncrono, añade @Async al listener y habilita @EnableAsync."));
+        sc(designPatterns, "Repository", "repository-pattern", 5,
+            "Patrón que abstrae el acceso a datos. Separa la lógica de negocio de la persistencia. Spring Data JPA implementa este patrón con interfaces como JpaRepository.",
+            """
+            public interface ClienteRepository {
+                Optional<Cliente> findById(Long id);
+                Cliente save(Cliente cliente);
+                List<Cliente> findAll();
+            }
+
+            // Spring Data JPA lo implementa automáticamente
+            public interface SpringClienteRepository extends JpaRepository<Cliente, Long> {}
+            """,
+            q("¿Repository vs DAO?",
+                "DAO es más cercano a la BD y suele reflejar tablas. Repository es más orientado al dominio y puede agregar lógica de consulta. En la práctica con Spring Data se usan indistintamente."),
+            q("¿Ventajas del patrón Repository?",
+                "Facilita tests (puedes mockear el repositorio), centraliza acceso a datos y permite cambiar la tecnología de persistencia sin tocar la lógica de negocio."));
+
+        // ===== REST API =====
+        Concept restApi = concept("REST API", "rest-api", Block.SPRING, 5,
+            "REST (Representational State Transfer) es un estilo arquitectónico para diseñar APIs web. Se basa en recursos identificados por URLs, métodos HTTP semánticos y representaciones (normalmente JSON).",
+            null,
+            cq("¿Qué es REST?",
+                "Estilo arquitectónico donde los recursos se identifican con URLs y se manipulan con métodos HTTP. Es stateless: cada petición contiene toda la información necesaria."),
+            cq("¿Métodos HTTP en REST?",
+                "GET (leer), POST (crear), PUT/PATCH (actualizar), DELETE (eliminar). Deben usarse de forma semántica. GET y DELETE son idempotentes; PUT también lo es si reemplaza el recurso completo."),
+            cq("¿Qué significa stateless?",
+                "El servidor no guarda estado de sesión del cliente entre peticiones. Cada request es independiente. La autenticación via JWT es un ejemplo de stateless."));
+        sc(restApi, "Métodos HTTP y status codes", "http-status", 1,
+            "Usar los métodos y códigos correctamente es fundamental para APIs REST claras y predecibles.",
+            """
+            GET    /clientes        -> 200 OK
+            GET    /clientes/1      -> 200 OK | 404 Not Found
+            POST   /clientes        -> 201 Created | 400 Bad Request
+            PUT    /clientes/1      -> 200 OK | 204 No Content | 404 Not Found
+            PATCH  /clientes/1      -> 200 OK | 204 No Content
+            DELETE /clientes/1      -> 204 No Content | 404 Not Found
+            """,
+            q("¿200 vs 201 vs 204?",
+                "200: petición exitosa con body. 201: recurso creado exitosamente. 204: petición exitosa sin body (común en DELETE y PUT)."),
+            q("¿400 vs 401 vs 403 vs 404?",
+                "400: request mal formado. 401: no autenticado. 403: autenticado pero sin permisos. 404: recurso no encontrado. 409: conflicto (ej: recurso ya existe). 422: entidad no procesable (validación)."));
+        sc(restApi, "Paginación y ordenación", "paginacion", 2,
+            "Para colecciones grandes, expone paginación y ordenación en lugar de devolver todo. Spring Data Pageable facilita su implementación.",
+            """
+            GET /clientes?page=0&size=20&sort=nombre,asc
+
+            // Respuesta típica
+            {
+              "content": [...],
+              "pageable": { "pageNumber": 0, "pageSize": 20 },
+              "totalElements": 150,
+              "totalPages": 8
+            }
+            """,
+            q("¿Page vs Slice?",
+                "Page conoce el total de elementos y páginas (requiere count). Slice solo sabe si hay siguiente página, más eficiente cuando no necesitas el total."),
+            q("¿Cómo implementar paginación en Spring?",
+                "Añade Pageable como parámetro del controller o repository. Spring resuelve page, size y sort automáticamente desde query params."));
+        sc(restApi, "Idempotencia y seguridad", "idempotencia", 3,
+            "Idempotencia significa que repetir una operación produce el mismo resultado. GET, PUT y DELETE deben ser idempotentes. POST no lo es porque crea un nuevo recurso cada vez.",
+            """
+            // Idempotente: enviar dos veces da el mismo resultado
+            PUT /clientes/1 { "nombre": "Ana" }
+
+            // No idempotente: enviar dos veces crea dos recursos
+            POST /clientes { "nombre": "Ana" }
+
+            // Clave de idempotencia para POST
+            POST /pagos
+            Idempotency-Key: abc-123
+            """,
+            q("¿Por qué importa la idempotencia?",
+                "Permite reintentar peticiones sin efectos secundarios. Crucial en pagos, reservas y operaciones críticas donde pueden ocurrir timeouts y reintentos."),
+            q("¿GET es seguro e idempotente?",
+                "Sí. Seguro porque no modifica estado. Idempotente porque repetirlo no cambia nada. POST no es seguro ni idempotente por defecto."));
+        sc(restApi, "Versionado de APIs", "versionado-api", 4,
+            "Estrategias para evitar romper clientes al evolucionar la API: path, query param, header o content negotiation.",
+            """
+            // Path versioning (más común)
+            /api/v1/clientes
+            /api/v2/clientes
+
+            // Header versioning
+            GET /clientes
+            X-API-Version: 2
+
+            // Query param
+            /clientes?version=2
+            """,
+            q("¿Qué versión usar?",
+                "Path versioning es el más simple y explícito. Header es más limpio para URLs pero menos visible. Query param es fácil de probar. No hay una única respuesta; depende de la organización."),
+            q("¿Cuándo crear una nueva versión?",
+                "Cuando hay cambios breaking: eliminar campos, cambiar tipos, modificar comportamiento. Añadir campos suele ser backward compatible y no requiere nueva versión."));
+
+        // ===== PROGRAMACIÓN FUNCIONAL =====
+        Concept programacionFuncional = concept("Programación Funcional", "programacion-funcional", Block.JAVA_CORE, 18,
+            "Java 8 introdujo características funcionales: lambdas, method references e interfaces funcionales. Permiten escribir código más conciso y composable, especialmente con Streams y Optional.",
+            null,
+            cq("¿Qué es una lambda?",
+                "Función anónima que puede pasarse como argumento. Sintaxis compacta para implementar interfaces funcionales. Ejemplo: (a, b) -> a + b."),
+            cq("¿Qué son las interfaces funcionales?",
+                "Interfaces con un único método abstracto. Marcadas con @FunctionalInterface. Ejemplos: Runnable, Callable, Predicate, Function, Consumer, Supplier. Java 8 añadió muchas en java.util.function."),
+            cq("¿Method reference?",
+                "Sintaxis abreviada para lambdas que llaman a un método existente. Ejemplos: System.out::println, String::toUpperCase, Cliente::getNombre."));
+        sc(programacionFuncional, "Interfaces funcionales", "interfaces-funcionales", 1,
+            "Categorías principales de interfaces funcionales en java.util.function.",
+            """
+            Predicate<String> empiezaConA = s -> s.startsWith("A");
+            Function<String, Integer> longitud = String::length;
+            Consumer<String> imprimir = System.out::println;
+            Supplier<Double> aleatorio = Math::random;
+            BiFunction<Integer, Integer, Integer> sumar = Integer::sum;
+
+            // Uso
+            imprimir.accept(empiezaConA.test("Ana") ? "Sí" : "No");
+            """,
+            q("¿Predicate vs Function?",
+                "Predicate<T> recibe un T y devuelve boolean. Function<T, R> recibe T y devuelve R. Consumer<T> recibe T y no devuelve nada. Supplier<T> no recibe nada y devuelve T."),
+            q("¿@FunctionalInterface obligatoria?",
+                "No, pero es buena práctica. El compilador verifica que solo haya un método abstracto y genera error si hay más."));
+        sc(programacionFuncional, "Lambdas", "lambdas", 2,
+            "Expresiones lambda simplifican la implementación de interfaces funcionales. Son la base de Streams y operaciones funcionales.",
+            """
+            List<String> nombres = List.of("Ana", "Pedro", "María");
+
+            // Lambda
+            nombres.forEach(nombre -> System.out.println(nombre));
+
+            // Method reference equivalente
+            nombres.forEach(System.out::println);
+
+            // Lambda con cuerpo
+            nombres.stream()
+                .filter(n -> {
+                    String minuscula = n.toLowerCase();
+                    return minuscula.length() > 3;
+                })
+                .toList();
+            """,
+            q("¿Variables efectivamente finales en lambdas?",
+                "Las variables locales usadas en lambdas deben ser final o efectivamente finales. No puedes reasignarlas después de usarlas en la lambda."),
+            q("¿this en lambda?",
+                "this dentro de una lambda se refiere a la instancia de la clase contenedora, no a la lambda misma. Es diferente de las clases anónimas clásicas."));
+        sc(programacionFuncional, "Method References", "method-references", 3,
+            "Forma concisa de escribir lambdas que invocan un método existente. Hay cuatro tipos: estático, instancia, constructor y arbitraria.",
+            """
+            // Referencia a método estático
+            Function<String, Integer> parsear = Integer::parseInt;
+
+            // Referencia a método de instancia de objeto particular
+            Cliente cliente = new Cliente("Ana");
+            Supplier<String> nombre = cliente::getNombre;
+
+            // Referencia a método de instancia arbitraria
+            Function<String, String> mayusculas = String::toUpperCase;
+
+            // Referencia a constructor
+            Supplier<List<String>> lista = ArrayList::new;
+            """,
+            q("¿Cuándo usar method reference?",
+                "Cuando la lambda solo llama a un método existente. Mejora legibilidad. Si la lambda tiene lógica adicional, mantén la sintaxis lambda."),
+            q("¿Method reference siempre reemplaza lambda?",
+                "No. Solo cuando la lambda es una llamada directa a un método. Para transformaciones más complejas, la lambda es más clara."));
+
+        // ===== JVM / GARBAGE COLLECTION =====
+        Concept jvmGc = concept("JVM y Garbage Collection", "jvm-gc", Block.JAVA_CORE, 19,
+            "Comprender la JVM, la gestión de memoria y el garbage collection es clave para optimizar aplicaciones Java y diagnosticar problemas de rendimiento.",
+            null,
+            cq("¿Qué partes tiene la memoria de la JVM?",
+                "Heap (objetos dinámicos), Stack (frames de métodos y variables locales), Metaspace (metadatos de clases, reemplazó a PermGen en Java 8), Program Counter, Native Method Stack."),
+            cq("¿Qué es el Garbage Collector?",
+                "Proceso automático de la JVM que libera memoria de objetos no alcanzables. Evita fugas de memoria y liberación manual. Diferentes algoritmos: Serial, Parallel, CMS, G1, ZGC, Shenandoah."),
+            cq("¿Heap vs Stack?",
+                "Heap almacena objetos y es compartido entre hilos. Stack almacena variables locales y referencias de métodos; cada hilo tiene su propio stack. Objetos grandes viven en heap."));
+        sc(jvmGc, "Heap y generaciones", "heap-generaciones", 1,
+            "El heap se divide en Young Generation (Eden, Survivor) y Old Generation. La mayoría de objetos mueren jóvenes; los que sobreviven varios ciclos GC pasan a Old Gen.",
+            """
+            // Regiones del heap
+            Young Generation:
+              - Eden: nuevos objetos
+              - Survivor S0, S1: objetos que sobreviven a Minor GC
+            Old Generation: objetos longevos
+
+            // Minor GC: limpia Young Generation
+            // Major/Full GC: limpia Old Generation
+            """,
+            q("¿Qué es un Minor GC?",
+                "Recolección de basura en Young Generation. Es rápido porque la mayoría de objetos mueren pronto. Usa el algoritmo mark-copy."),
+            q("¿Qué es un Full GC?",
+                "Recolección en todo el heap, incluyendo Old Generation. Es más lento y puede causar pausas largas (stop-the-world). Se intenta minimizar en producción."));
+        sc(jvmGc, "Garbage Collectors", "garbage-collectors", 2,
+            "JVM ofrece varios GC con diferentes trade-offs entre throughput, latency y footprint.",
+            """
+            # Algunos collectors y flags
+            -XX:+UseG1GC              // G1 Garbage Collector (default Java 11+)
+            -XX:+UseZGC               // ZGC (baja latencia, Java 15+ production)
+            -XX:+UseShenandoahGC      // Shenandoah (baja latencia)
+            -XX:MaxGCPauseMillis=200  // objetivo de pausa para G1
+            """,
+            q("¿G1 vs ZGC?",
+                "G1 divide el heap en regiones y balancea throughput y latencia. ZGC está diseñado para pausas menores a 10ms con heaps grandes, ideal para aplicaciones de baja latencia."),
+            q("¿Qué GC usar en producción?",
+                "Java 17+: G1 es el default y funciona bien para la mayoría. Para aplicaciones con requisitos estrictos de latencia y heaps muy grandes, considera ZGC o Shenandoah."));
+        sc(jvmGc, "Memory leaks en Java", "memory-leaks", 3,
+            "Aunque Java tiene GC, pueden producirse fugas de memoria si se mantienen referencias no intencionadas a objetos.",
+            """
+            // Ejemplo clásico: colección estática que crece
+            public class Cache {
+                private static final Map<String, Object> cache = new HashMap<>();
+                // Si nunca se eliminan entradas, esto es un memory leak
+            }
+
+            // Solución: WeakHashMap o caché con TTL/eviction
+            private static final Map<String, Object> cache = new WeakHashMap<>();
+            """,
+            q("¿Cómo detectar memory leak?",
+                "Herramientas: heap dumps + Eclipse MAT, VisualVM, JProfiler. Síntomas: uso de heap que crece sin liberarse, OutOfMemoryError, Full GC frecuentes."),
+            q("¿WeakReference vs SoftReference?",
+                "WeakReference permite que el GC recolecte el objeto en el próximo ciclo. SoftReference se mantiene hasta que la JVM necesita memoria. Útil para caches."));
+        sc(jvmGc, "JVM tuning básico", "jvm-tuning", 4,
+            "Opciones básicas de configuración de memoria y comportamiento del GC.",
+            """
+            # Opciones comunes
+            -Xms512m -Xmx2g       // heap inicial y máximo
+            -XX:MetaspaceSize=128m
+            -XX:MaxMetaspaceSize=256m
+            -XX:+HeapDumpOnOutOfMemoryError
+            -XX:HeapDumpPath=/tmp/heapdump.hprof
+            -Xlog:gc*:file=/tmp/gc.log
+            """,
+            q("¿Xms debe ser igual a Xmx?",
+                "En producción suele recomendarse Xms = Xmx para evitar resizing del heap, que genera pausas. Pero depende de la carga y elasticidad del entorno."),
+            q("¿Qué es un heap dump?",
+                "Snapshot de la memoria heap en un momento dado. Permite analizar qué objetos consumen memoria y quién los referencia. Esencial para diagnosticar OOM."));
+
+        // ===== SERIALIZACIÓN =====
+        Concept serializacion = concept("Serialización", "serializacion", Block.JAVA_CORE, 20,
+            "Serialización convierte un objeto en una secuencia de bytes para almacenarlo o transmitirlo. Deserialización reconstruye el objeto a partir de esos bytes.",
+            null,
+            cq("¿Qué es Serializable?",
+                "Interfaz marker de java.io. Indica que una clase puede serializarse. Requiere que todos los campos sean serializables o transient."),
+            cq("¿Qué es transient?",
+                "Palabra clave que evita que un campo se serialice. Útil para datos sensibles, cachés o campos que no tienen sentido fuera de la JVM actual."),
+            cq("¿serialVersionUID?",
+                "Identificador de versión para clases serializables. Si cambia la clase, debe coincidir al deserializar o lanzará InvalidClassException. Se recomienda declararlo explícitamente."));
+        sc(serializacion, "Serializable básico", "serializable-basico", 1,
+            "Ejemplo mínimo de serialización con ObjectOutputStream y ObjectInputStream.",
+            """
+            public class Usuario implements Serializable {
+                private static final long serialVersionUID = 1L;
+                private String nombre;
+                private transient String password; // no se serializa
+            }
+
+            // Guardar
+            try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("user.ser"))) {
+                oos.writeObject(usuario);
+            }
+
+            // Recuperar
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream("user.ser"))) {
+                Usuario u = (Usuario) ois.readObject();
+            }
+            """,
+            q("¿Por qué usar try-with-resources?",
+                "Garantiza que los streams se cierren automáticamente. ObjectOutputStream y ObjectInputStream deben cerrarse para evitar fugas de recursos."),
+            q("¿Serializable sigue siendo recomendado?",
+                "Para persistencia o comunicación entre servicios modernos se prefieren JSON (Jackson) o Protocol Buffers. Serializable sigue útil para cachés locales, sesiones o RMI."));
+
+        // ===== SERVLETS Y FILTROS =====
+        Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
+            "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
+            null,
+            cq("¿Qué es un Servlet?",
+                "Componente Java que recibe peticiones HTTP y genera respuestas. Spring MVC se construye sobre el Servlet API (DispatcherServlet)."),
+            cq("¿Qué es un Filter?",
+                "Objeto que intercepta peticiones y respuestas. Se configura en el contenedor web y puede modificar o bloquear el paso al servlet."),
+            cq("¿DispatcherServlet?",
+                "Servlet central de Spring MVC. Recibe todas las peticiones, las enruta a controllers y coordina vistas o respuestas REST."));
+        sc(servletsFiltros, "Servlet básico", "servlet-basico", 1,
+            "Servlet clásico con anotaciones de Servlet 3.0.",
+            """
+            @WebServlet(name = "HolaServlet", urlPatterns = "/hola")
+            public class HolaServlet extends HttpServlet {
+                @Override
+                protected void doGet(HttpServletRequest req, HttpServletResponse res)
+                        throws ServletException, IOException {
+                    res.setContentType("text/plain");
+                    res.getWriter().write("Hola mundo");
+                }
+            }
+            """,
+            q("¿doGet vs doPost?",
+                "doGet maneja peticiones GET. doPost maneja POST. Un servlet puede sobrescribir ambos según el método HTTP requerido."),
+            q("¿Por qué Spring MVC es más popular que Servlets planos?",
+                "Spring MVC abstrae el Servlet API, proporciona inyección de dependencias, data binding, validación, manejo de excepciones y testing mucho más sencillo."));
+        sc(servletsFiltros, "Filtro", "filtro", 2,
+            "Filtro para logging o configuración de cabeceras.",
+            """
+            @WebFilter("/*")
+            public class LoggingFilter implements Filter {
+                @Override
+                public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
+                        throws IOException, ServletException {
+                    HttpServletRequest request = (HttpServletRequest) req;
+                    System.out.println("Request: " + request.getRequestURI());
+                    chain.doFilter(req, res);
+                }
+            }
+            """,
+            q("¿FilterChain?",
+                "Permite pasar la petición al siguiente filtro o al servlet destino. Si no llamas a chain.doFilter(), la petición no continúa."),
+            q("¿Filtro vs Interceptor de Spring?",
+                "Filtro es del Servlet API y actúa antes de que Spring reciba la petición. Interceptor es de Spring MVC y tiene acceso al controller, modelo y excepciones."));
+
+        // ===== GIT =====
+        Concept git = concept("Git", "git", Block.TOOLS, 2,
+            "Git es un sistema de control de versiones distribuido. Permite rastrear cambios, colaborar en equipo y gestionar diferentes líneas de desarrollo con ramas.",
+            null,
+            cq("¿Qué es Git?",
+                "Sistema de control de versiones distribuido. Cada desarrollador tiene una copia completa del repositorio, incluyendo historia."),
+            cq("¿Git vs GitHub?",
+                "Git es la herramienta de control de versiones. GitHub es una plataforma web que aloja repositorios Git y añade funciones de colaboración (PRs, issues, actions)."),
+            cq("¿Commit, branch, merge?",
+                "Commit guarda un snapshot de cambios. Branch es una línea de desarrollo independiente. Merge integra una rama en otra."));
+        sc(git, "Comandos esenciales", "git-comandos", 1,
+            "Comandos básicos de uso diario.",
+            """
+            git clone <url>
+            git pull
+            git checkout -b feature/nueva-funcionalidad
+            git add .
+            git commit -m "feat: add user endpoint"
+            git push -u origin feature/nueva-funcionalidad
+            git checkout main
+            git merge feature/nueva-funcionalidad
+            """,
+            q("¿git pull vs git fetch?",
+                "fetch descarga cambios del remoto sin fusionarlos. pull hace fetch + merge. fetch es más seguro para revisar antes de integrar."),
+            q("¿git merge vs git rebase?",
+                "merge crea un commit de fusión y conserva historia. rebase aplica commits sobre la rama base, generando historia lineal pero reescribiendo commits. No uses rebase en ramas compartidas."));
+        sc(git, "Resolución de conflictos", "git-conflictos", 2,
+            "Cuando dos ramas modifican la misma línea, Git no puede fusionar automáticamente y pide intervención manual.",
+            """
+            <<<<<<< HEAD
+            public void saludar() { return "hola"; }
+            =======
+            public void saludar() { return "hello"; }
+            >>>>>>> feature/ingles
+            """,
+            q("¿Cómo resolver un conflicto?",
+                "Edita el fichero conservando el código correcto, elimina los marcadores <<<<<<<, =======, >>>>>>>. Luego git add . y git commit."),
+            q("¿git status durante conflicto?",
+                "Muestra los ficheros en estado both modified. Ayuda a identificar qué archivos necesitan atención manual."));
+
+        // ===== DOCKER =====
+        Concept docker = concept("Docker", "docker", Block.TOOLS, 3,
+            "Docker permite empaquetar aplicaciones con sus dependencias en contenedores ligeros y portables. Facilita despliegues consistentes entre desarrollo, testing y producción.",
+            null,
+            cq("¿Qué es un contenedor?",
+                "Entorno aislado que ejecuta una aplicación con su sistema de archivos, dependencias y configuración. Comparte el kernel del host, por eso es más ligero que una VM."),
+            cq("¿Imagen vs contenedor?",
+                "Imagen es la plantilla inmutable. Contenedor es la instancia en ejecución de una imagen. Puedes crear múltiples contenedores de una misma imagen."),
+            cq("¿Dockerfile?",
+                "Fichero con instrucciones para construir una imagen: FROM, COPY, RUN, CMD, EXPOSE. Cada instrucción crea una capa."));
+        sc(docker, "Dockerfile para Spring Boot", "dockerfile-spring", 1,
+            "Dockerfile típico para empaquetar una app Spring Boot.",
+            """
+            FROM eclipse-temurin:21-jre-alpine
+            WORKDIR /app
+            COPY target/mi-app-1.0.0.jar app.jar
+            EXPOSE 8080
+            ENTRYPOINT ["java", "-jar", "app.jar"]
+            """,
+            q("¿Por qué usar JRE y no JDK en producción?",
+                "La JRE es más ligera porque no incluye herramientas de compilación. Reduce superficie de ataque y tamaño de imagen."),
+            q("¿ENTRYPOINT vs CMD?",
+                "ENTRYPOINT define el comando principal y no se sobreescribe fácilmente. CMD proporciona argumentos por defecto. Con ENTRYPOINT fijas el ejecutable; con CMD puedes cambiarlo al ejecutar."));
+        sc(docker, "Comandos Docker", "docker-comandos", 2,
+            "Comandos básicos para gestionar imágenes y contenedores.",
+            """
+            docker build -t mi-app:1.0 .
+            docker run -p 8080:8080 mi-app:1.0
+            docker ps
+            docker stop <container_id>
+            docker logs <container_id>
+            docker exec -it <container_id> /bin/sh
+            """,
+            q("¿docker run -p?",
+                "Mapea puertos. -p 8080:8080 expone el puerto 8080 del contenedor en el puerto 8080 del host."),
+            q("¿docker exec?",
+                "Ejecuta un comando dentro de un contenedor en ejecución. Útil para depuración, inspeccionar ficheros o ejecutar shells."));
+
+        // ===== SQL =====
+        Concept sql = concept("SQL", "sql", Block.TOOLS, 4,
+            "SQL (Structured Query Language) es el lenguaje estándar para gestionar y consultar bases de datos relacionales. Esencial para cualquier desarrollador backend.",
+            null,
+            cq("¿Qué es SQL?",
+                "Lenguaje declarativo para bases de datos relacionales. Permite crear, leer, actualizar y eliminar datos (CRUD) y definir esquemas."),
+            cq("¿DDL vs DML vs DCL?",
+                "DDL (Data Definition Language): CREATE, ALTER, DROP. DML (Data Manipulation Language): SELECT, INSERT, UPDATE, DELETE. DCL: GRANT, REVOKE."),
+            cq("¿Clave primaria vs foránea?",
+                "Primaria identifica únicamente cada fila de una tabla. Foránea establece relación entre tablas y garantiza integridad referencial."));
+        sc(sql, "Consultas básicas", "sql-basico", 1,
+            "Operaciones CRUD y consultas simples.",
+            """
+            SELECT * FROM clientes WHERE activo = true ORDER BY nombre;
+            INSERT INTO clientes (nombre, email) VALUES ('Ana', 'ana@example.com');
+            UPDATE clientes SET email = 'nuevo@example.com' WHERE id = 1;
+            DELETE FROM clientes WHERE id = 1;
+            """,
+            q("¿SELECT * es malo?",
+                "En consultas de producción puede ser ineficiente porque trae columnas innecesarias y dificulta el uso de índices covering. Especifica solo las columnas que necesitas."),
+            q("¿Diferencia WHERE vs HAVING?",
+                "WHERE filtra filas antes de agrupar. HAVING filtra grupos después de GROUP BY. No puedes usar funciones agregadas en WHERE."));
+        sc(sql, "JOINs", "sql-joins", 2,
+            "Combinar datos de varias tablas es una de las operaciones más comunes y preguntadas.",
+            """
+            SELECT p.id, c.nombre, p.total
+            FROM pedidos p
+            JOIN clientes c ON p.cliente_id = c.id;
+
+            -- LEFT JOIN incluye pedidos aunque no tengan cliente
+            SELECT p.id, c.nombre
+            FROM pedidos p
+            LEFT JOIN clientes c ON p.cliente_id = c.id;
+            """,
+            q("¿INNER JOIN vs LEFT JOIN?",
+                "INNER devuelve solo filas con coincidencia en ambas tablas. LEFT devuelve todas las filas de la izquierda y NULL donde no hay coincidencia."),
+            q("¿Qué es un índice?",
+                "Estructura de datos que acelera consultas a costa de espacio y rendimiento de escritura. Se crean sobre columnas frecuentemente consultadas o usadas en JOIN/WHERE."));
+
+        // ===== MICROSERVICIOS =====
+        Concept microservicios = concept("Microservicios", "microservicios", Block.SPRING_BOOT, 3,
+            "Arquitectura que divide una aplicación en servicios pequeños, autónomos y desplegables de forma independiente. Cada servicio tiene su propia base de datos y responsabilidad de negocio.",
+            null,
+            cq("¿Qué son microservicios?",
+                "Estilo arquitectónico donde una aplicación se compone de servicios pequeños, independientes y desplegables por separado. Cada uno se enfoca en una capacidad de negocio."),
+            cq("¿Microservicios vs monolito?",
+                "Monolito es más simple de desarrollar y desplegar inicialmente. Microservicios escalan mejor, permiten equipos independientes y tecnologías distintas, pero añaden complejidad operativa."),
+            cq("¿Comunicación entre microservicios?",
+                "Síncrona: HTTP/REST, gRPC. Asíncrona: mensajería con Kafka, RabbitMQ. Asíncrona reduce acoplamiento y mejora resiliencia."));
+        sc(microservicios, "Ventajas y desventajas", "micro-pros-contras", 1,
+            "No todos los proyectos necesitan microservicios. Es importante evaluar el contexto.",
+            """
+            Ventajas:
+              - Escalado independiente por servicio
+              - Equipos autónomos
+              - Tolerancia a fallos parciales
+              - Tecnologías heterogéneas
+
+            Desventajas:
+              - Complejidad operativa
+              - Latencia de red
+              - Consistencia eventual
+              - Debugging distribuido
+            """,
+            q("¿Cuándo NO usar microservicios?",
+                "Si el equipo es pequeño, el dominio poco claro o se prioriza velocidad de desarrollo. Muchos proyectos exitosos empiezan como monolitos modulares."),
+            q("¿Service Discovery?",
+                "Mecanismo para que los servicios se encuentren dinámicamente. En Spring Cloud se usa Eureka o Consul. Evita hardcodear URLs."));
+        sc(microservicios, "API Gateway", "api-gateway", 2,
+            "Punto de entrada único para clientes. Enruta peticiones a microservicios, maneja autenticación, rate limiting y SSL termination.",
+            """
+            Cliente -> API Gateway -> Servicio A
+                                -> Servicio B
+                                -> Servicio C
+            """,
+            q("¿Spring Cloud Gateway?",
+                "Gateway de Spring Cloud basado en Spring WebFlux. Soporta routing, filtros, load balancing, circuit breakers e integración con OAuth2."),
+            q("¿Por qué usar API Gateway?",
+                "Oculta la complejidad interna de los microservicios, centraliza cross-cutting concerns y proporciona un único punto de contacto para clientes."));
+
+        // ===== SPRING BOOT ACTUATOR =====
+        Concept actuator = concept("Spring Boot Actuator", "spring-boot-actuator", Block.SPRING_BOOT, 4,
+            "Actuator añade endpoints de producción a Spring Boot para monitorizar y gestionar la aplicación: health, metrics, info, loggers, etc.",
+            null,
+            cq("¿Qué es Spring Boot Actuator?",
+                "Módulo de Spring Boot que expone endpoints operativos. Permite monitorizar health, métricas, configuración y gestionar loggers sin escribir código adicional."),
+            cq("¿Endpoints importantes?",
+                "/actuator/health: estado de la app. /actuator/metrics: métricas JVM y personalizadas. /actuator/info: información de build. /actuator/loggers: niveles de logging."),
+            cq("¿Seguridad en Actuator?",
+                "No expongas todos los endpoints públicamente. Restringe mediante Spring Security y expón solo health de forma pública si es necesario."));
+        sc(actuator, "Configuración básica", "actuator-config", 1,
+            "Cómo habilitar y exponer endpoints de Actuator.",
+            """
+            # application.properties
+            management.endpoints.web.exposure.include=health,info,metrics,loggers
+            management.endpoint.health.show-details=when_authorized
+
+            # Acceso
+            GET /actuator/health
+            GET /actuator/metrics/jvm.memory.used
+            """,
+            q("¿Cómo añadir información a /info?",
+                "Puedes configurar propiedades management.info.* o usar InfoContributors. También se integra con información del build si añades el plugin."),
+            q("¿Health indicators personalizados?",
+                "Implementas HealthIndicator y registras el bean. Útil para verificar conectividad con bases de datos, servicios externos o colas de mensajes."));
+
+        // ===== OPENAPI / SWAGGER =====
+        Concept openapi = concept("OpenAPI / Swagger", "openapi-swagger", Block.SPRING, 7,
+            "OpenAPI es una especificación estándar para describir APIs REST. Swagger UI genera documentación interactiva a partir de esa especificación.",
+            null,
+            cq("¿Qué es OpenAPI?",
+                "Especificación para documentar APIs REST: endpoints, métodos, parámetros, respuestas, esquemas. La versión actual es OpenAPI 3.0/3.1."),
+            cq("¿Swagger vs OpenAPI?",
+                "OpenAPI es la especificación. Swagger es el conjunto de herramientas (Swagger UI, Swagger Editor). Swagger UI genera una página web interactiva para probar la API."),
+            cq("¿Springdoc?",
+                "Librería que genera automáticamente la especificación OpenAPI a partir de controllers Spring Boot y expone /swagger-ui.html."));
+        sc(openapi, "Springdoc OpenAPI", "springdoc", 1,
+            "Configuración básica para añadir Swagger UI a Spring Boot.",
+            """
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>2.6.0</version>
+            </dependency>
+
+            // Acceso
+            http://localhost:8080/swagger-ui.html
+            http://localhost:8080/v3/api-docs
+            """,
+            q("¿Para qué sirve /v3/api-docs?",
+                "Devuelve la especificación OpenAPI en formato JSON. Es consumido por Swagger UI y por herramientas de generación de clientes."),
+            q("¿Se puede personalizar la documentación?",
+                "Sí, con anotaciones como @Operation, @ApiResponse, @Schema, @Parameter sobre controllers y DTOs."));
+
         // Guardar/actualizar conceptos raíz de forma idempotente
         List<Concept> allRoots = List.of(
             clase, objeto, herencia, polimorfismo, encapsulamiento,
             interfaceConcept, abstractClass, excepciones, genericos,
             colecciones, streams,
+            multithreading, sincronizacion, concurrenciaAvanzada,
             plataformaJava,
-            springFramework, ioc, springMvc, springSecurity,
-            springBoot,
-            jpa, hibernate
+            programacionFuncional, designPatterns, jvmGc, serializacion,
+            springFramework, ioc, springMvc, springSecurity, restApi, openapi, servletsFiltros,
+            springBoot, springBootTesting, microservicios, actuator,
+            jpa, hibernate,
+            testing,
+            solid, cleanCode,
+            maven, git, docker, sql
         );
         for (Concept root : allRoots) {
             saveOrMergeRoot(root);
