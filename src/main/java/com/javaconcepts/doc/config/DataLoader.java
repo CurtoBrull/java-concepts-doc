@@ -1466,6 +1466,75 @@ public class DataLoader implements CommandLineRunner {
                 "Mensajes de error más descriptivos, API fluida y descubrible, mejor manejo de colecciones y tipos complejos. El orden de parámetros es más intuitivo (actual primero)."),
             q("¿AssertJ funciona con JUnit 5?",
                 "Sí, es totalmente compatible. Puedes mezclar assertions de JUnit y AssertJ en el mismo test. Muchos proyectos usan AssertJ exclusivamente para assertions."));
+        sc(testing, "Tests de integración", "tests-integracion", 4,
+            "Los tests de integración verifican que varias capas funcionan juntas: controller + service + repository + base de datos. En Spring se usan @SpringBootTest, @WebMvcTest y @DataJpaTest.",
+            """
+            @SpringBootTest
+            @AutoConfigureMockMvc
+            class ClienteControllerIntegrationTest {
+
+                @Autowired
+                private MockMvc mockMvc;
+
+                @Autowired
+                private ClienteRepository repository;
+
+                @BeforeEach
+                void setUp() {
+                    repository.deleteAll();
+                }
+
+                @Test
+                void debeCrearCliente() throws Exception {
+                    mockMvc.perform(post("/clientes")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"nombre\":\"Ana\"}"))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.nombre").value("Ana"));
+                }
+            }
+            """,
+            q("¿@SpringBootTest vs @WebMvcTest vs @DataJpaTest?",
+                "@SpringBootTest carga todo el contexto. @WebMvcTest carga solo capa web con MockMvc. @DataJpaTest carga solo repositorios JPA con base de datos embebida. Usa el más específico para tests más rápidos."),
+            q("¿Testcontainers para qué sirve?",
+                "Librería que levanta contenedores Docker reales (PostgreSQL, Kafka, Redis) durante los tests. Permite tests de integración fieles al entorno de producción."));
+        sc(testing, "TDD", "tdd", 5,
+            "Test Driven Development: escribir primero el test, luego el código mínimo para pasarlo, y finalmente refactorizar. Ciclo red-green-refactor.",
+            null,
+            q("¿Qué es TDD?",
+                "Metodología de desarrollo donde escribes un test fallido, implementas el código mínimo para pasarlo y luego refactorizas. Fomenta diseño simple y feedback rápido."),
+            q("¿Ventajas de TDD?",
+                "Cobertura de tests alta desde el inicio, diseño más desacoplado, menos bugs de regresión y documentación viva del comportamiento esperado."),
+            q("¿TDD vs BDD?",
+                "TDD se centra en tests técnicos unitarios. BDD (Behavior Driven Development) describe comportamiento en lenguaje cercano al negocio con Given-When-Then. Herramientas: Cucumber, Spock."));
+        sc(testing, "Cobertura y calidad", "cobertura", 6,
+            "La cobertura de código mide qué porcentaje del código ejecutan los tests, pero no garantiza calidad. Es una métrica, no un objetivo.",
+            """
+            # Generar reporte con JaCoCo
+            mvn test jacoco:report
+
+            # Umbral mínimo en pom.xml
+            <execution>
+                <goals><goal>check</goal></goals>
+                <configuration>
+                    <rules>
+                        <rule>
+                            <limits>
+                                <limit>
+                                    <counter>LINE</counter>
+                                    <value>COVEREDRATIO</value>
+                                    <minimum>0.80</minimum>
+                                </limit>
+                            </limits>
+                        </rule>
+                    </rules>
+                </configuration>
+            </execution>
+            """,
+            q("¿Cobertura del 100% significa que no hay bugs?",
+                "No. Indica que todas las líneas se ejecutaron, no que los asserts sean correctos ni que se hayan probado todos los escenarios y edge cases."),
+            q("¿JaCoCo?",
+                "Java Code Coverage. Herramienta que genera reportes de cobertura. Se integra con Maven/Gradle y CI/CD para fallar builds si no se alcanza el umbral."));
 
         // ===== SPRING =====
         Concept springFramework = concept("Spring Framework", "spring-framework", Block.SPRING, 1,
@@ -3094,6 +3163,458 @@ public class DataLoader implements CommandLineRunner {
             q("¿Se puede personalizar la documentación?",
                 "Sí, con anotaciones como @Operation, @ApiResponse, @Schema, @Parameter sobre controllers y DTOs."));
 
+        // ===== TRANSACCIONES =====
+        Concept transacciones = concept("Transacciones @Transactional", "transacciones", Block.JPA_HIBERNATE, 3,
+            "Una transacción agrupa operaciones de base de datos que deben ejecutarse de forma atómica: todas se confirman (commit) o ninguna (rollback). Spring gestiona transacciones con @Transactional.",
+            null,
+            cq("¿Qué es @Transactional?",
+                "Anotación de Spring que declara que un método debe ejecutarse dentro de una transacción. Si ocurre una RuntimeException no controlada, se hace rollback automático."),
+            cq("¿Propagation REQUIRED vs REQUIRES_NEW?",
+                "REQUIRED (default): usa la transacción actual o crea una nueva. REQUIRES_NEW: suspende la transacción actual y crea una nueva; al finalizar, reanuda la anterior. Útil para operaciones independientes como logs o auditoría."),
+            cq("¿Qué excepciones causan rollback?",
+                "Por defecto solo RuntimeException y Error causan rollback. Las checked exceptions no causan rollback a menos que configures rollbackFor o noRollbackFor."));
+        sc(transacciones, "Configuración básica", "transactional-basico", 1,
+            "Uso típico de @Transactional en capa de servicio.",
+            """
+            @Service
+            @Transactional
+            public class PedidoService {
+                private final PedidoRepository pedidoRepo;
+                private final StockService stockService;
+
+                public Pedido crearPedido(PedidoDTO dto) {
+                    Pedido pedido = pedidoRepo.save(new Pedido(dto));
+                    stockService.descontar(dto.productoId(), dto.cantidad());
+                    return pedido;
+                }
+            }
+            """,
+            q("¿@Transactional en clase o método?",
+                "En clase aplica a todos los métodos públicos. En método anula la configuración de clase. Es buena práctica ponerlo a nivel de servicio."),
+            q("¿Rollback manual?",
+                "Puedes lanzar RuntimeException o llamar a TransactionAspectSupport.currentTransactionStatus().setRollbackOnly() para marcar la transacción actual como rollback-only."));
+        sc(transacciones, "Niveles de aislamiento", "isolation-levels", 2,
+            "Los isolation levels controlan cuánto se ven las transacciones entre sí. De menor a mayor aislamiento: READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE.",
+            """
+            @Transactional(isolation = Isolation.READ_COMMITTED)
+            public void procesarPago() { ... }
+            """,
+            q("¿Dirty read, non-repeatable read, phantom read?",
+                "Dirty read: leer datos no confirmados. Non-repeatable read: leer mismo dato dos veces y obtener valores distintos. Phantom read: misma consulta devuelve filas distintas. A mayor aislamiento, menos problemas pero más bloqueos."),
+            q("¿Isolation default?",
+                "DEFAULT delega al nivel por defecto de la base de datos. PostgreSQL usa READ COMMITTED por defecto."));
+
+        // ===== JDBC =====
+        Concept jdbc = concept("JDBC", "jdbc", Block.JPA_HIBERNATE, 4,
+            "JDBC (Java Database Connectivity) es la API de bajo nivel para conectar Java con bases de datos relacionales. JPA y Hibernate se construyen sobre JDBC.",
+            null,
+            cq("¿Qué es JDBC?",
+                "API estándar de Java para ejecutar SQL contra bases de datos. Usa Connection, Statement, PreparedStatement y ResultSet. Requiere manejo manual de recursos y excepciones."),
+            cq("¿PreparedStatement vs Statement?",
+                "PreparedStatement precompila la consulta y evita SQL injection al parametrizar valores. Statement ejecuta SQL directo y es inseguro para inputs dinámicos."),
+            cq("¿Por qué usar JPA sobre JDBC?",
+                "JPA reduce boilerplate, mapea objetos a tablas automáticamente y abstrae diferencias entre bases de datos. JDBC ofrece más control para queries complejas o masivas."));
+        sc(jdbc, "CRUD con JDBC", "jdbc-crud", 1,
+            "Ejemplo básico de consulta parametrizada con try-with-resources.",
+            """
+            public Optional<Cliente> findById(Long id) {
+                String sql = "SELECT id, nombre FROM clientes WHERE id = ?";
+                try (Connection conn = dataSource.getConnection();
+                     PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setLong(1, id);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            return Optional.of(new Cliente(
+                                rs.getLong("id"),
+                                rs.getString("nombre")));
+                        }
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+                return Optional.empty();
+            }
+            """,
+            q("¿DataSource?",
+                "Interfaz que proporciona conexiones a la base de datos. Spring configura automáticamente un DataSource a partir de application.properties. HikariCP es el pool por defecto."),
+            q("¿Por qué try-with-resources?",
+                "Connection, PreparedStatement y ResultSet deben cerrarse. try-with-resources cierra automáticamente en orden inverso, evitando fugas de recursos."));
+        sc(jdbc, "JdbcTemplate", "jdbc-template", 2,
+            "Spring JdbcTemplate simplifica JDBC manejando conexiones, excepciones y mapeo de resultados.",
+            """
+            @Repository
+            public class ClienteJdbcRepository {
+                private final JdbcTemplate jdbcTemplate;
+
+                public ClienteJdbcRepository(JdbcTemplate jdbcTemplate) {
+                    this.jdbcTemplate = jdbcTemplate;
+                }
+
+                public List<Cliente> findAll() {
+                    return jdbcTemplate.query(
+                        "SELECT id, nombre FROM clientes",
+                        (rs, rowNum) -> new Cliente(
+                            rs.getLong("id"),
+                            rs.getString("nombre")));
+                }
+            }
+            """,
+            q("¿JdbcTemplate vs JPA?",
+                "JdbcTemplate es más verboso que JPA pero da control total sobre el SQL. Úsalo para queries complejas, reportes o cuando el mapeo relacional no encaja bien con JPA."),
+            q("¿RowMapper?",
+                "Interfaz que mapea cada fila de ResultSet a un objeto. Puedes usar lambda o implementarla como clase separada si el mapeo es complejo."));
+
+        // ===== SPRING SECURITY JWT =====
+        Concept jwtSecurity = concept("JWT con Spring Security", "jwt-security", Block.SPRING, 8,
+            "JWT (JSON Web Token) es un estándar para tokens firmados que contienen claims. Se usa comúnmente para autenticación stateless en APIs REST.",
+            null,
+            cq("¿Qué es JWT?",
+                "Token firmado digitalmente compuesto por header, payload (claims) y signature. Permite autenticación stateless: el cliente envía el token en cada petición."),
+            cq("¿Estructura de JWT?",
+                "header.payload.signature. Header define algoritmo. Payload contiene claims como sub, exp, roles. Signature valida que no fue alterado."),
+            cq("¿Dónde enviar el JWT?",
+                "En la cabecera Authorization con el prefijo Bearer: Authorization: Bearer <token>."));
+        sc(jwtSecurity, "Flujo de autenticación", "jwt-flujo", 1,
+            "Pasos típicos de autenticación con JWT en Spring Security.",
+            """
+            1. Cliente envía credenciales POST /login
+            2. Servidor valida y genera JWT firmado
+            3. Cliente almacena token (localStorage / cookie httpOnly)
+            4. Cliente envía token en cada request: Authorization: Bearer <token>
+            5. Filtro de Spring Security valida firma y extrae roles
+            """,
+            q("¿JWT vs sesión?",
+                "JWT es stateless: no requiere almacenar sesión en servidor. Sesión tradicional guarda estado en servidor (memory, Redis, DB). JWT escala mejor horizontalmente."),
+            q("¿Riesgos de JWT?",
+                "Tokens no se pueden revocar fácilmente hasta que expiran. Si se filtran, un atacante puede usarlos. Usa HTTPS, expiraciones cortas y refresh tokens."));
+        sc(jwtSecurity, "Filtro JWT en Spring", "jwt-filtro", 2,
+            "Configuración típica con un OncePerRequestFilter que valida el token.",
+            """
+            @Component
+            public class JwtAuthFilter extends OncePerRequestFilter {
+                @Override
+                protected void doFilterInternal(HttpServletRequest req,
+                                                  HttpServletResponse res,
+                                                  FilterChain chain)
+                        throws ServletException, IOException {
+                    String header = req.getHeader("Authorization");
+                    if (header != null && header.startsWith("Bearer ")) {
+                        String token = header.substring(7);
+                        // validar firma y extraer usuario/roles
+                        // establecer Authentication en SecurityContext
+                    }
+                    chain.doFilter(req, res);
+                }
+            }
+            """,
+            q("¿OncePerRequestFilter?",
+                "Garantiza que el filtro se ejecuta una sola vez por petición, incluso con forwards o includes. Es la base de filtros JWT en Spring."),
+            q("¿SecurityContextHolder?",
+                "Almacena la autenticación del usuario actual durante la petición. Los controllers pueden obtener el usuario con @AuthenticationPrincipal."));
+
+        // ===== WEBCLIENT / RESTTEMPLATE =====
+        Concept httpClient = concept("WebClient y RestTemplate", "webclient-resttemplate", Block.SPRING_BOOT, 5,
+            "Spring ofrece clientes HTTP para consumir APIs externas. RestTemplate es síncrono y está en modo maintenance. WebClient es la opción moderna, reactiva y no bloqueante.",
+            null,
+            cq("¿WebClient vs RestTemplate?",
+                "WebClient es no bloqueante, reactivo y concurrente por defecto. RestTemplate es bloqueante y ya no recibe nuevas funcionalidades. En proyectos nuevos se recomienda WebClient."),
+            cq("¿Cómo crear WebClient?",
+                "Puedes usar WebClient.builder() o inyectar WebClient.Builder configurado como bean. Permite configurar baseUrl, timeouts, codecs y filtros."),
+            cq("¿RestTemplate está obsoleto?",
+                "No está deprecado oficialmente, pero está en maintenance mode. Spring recomienda WebClient para nuevo código."));
+        sc(httpClient, "WebClient básico", "webclient-basico", 1,
+            "Ejemplo de consumo de API externa con WebClient.",
+            """
+            @Service
+            public class PokemonService {
+                private final WebClient webClient;
+
+                public PokemonService(WebClient.Builder builder) {
+                    this.webClient = builder.baseUrl("https://pokeapi.co/api/v2").build();
+                }
+
+                public Mono<Pokemon> findByName(String name) {
+                    return webClient.get()
+                        .uri("/pokemon/{name}", name)
+                        .retrieve()
+                        .bodyToMono(Pokemon.class);
+                }
+            }
+            """,
+            q("¿Mono vs Flux?",
+                "Mono representa 0 o 1 elemento. Flux representa 0 a N elementos. Ambos son tipos reactivos de Project Reactor."),
+            q("¿retrieve vs exchange?",
+                "retrieve es más simple y maneja errores HTTP automáticamente. exchange da acceso completo a ClientResponse pero requiere liberar recursos manualmente."));
+        sc(httpClient, "RestTemplate básico", "resttemplate-basico", 2,
+            "Ejemplo clásico con RestTemplate para comparar.",
+            """
+            @Service
+            public class PokemonService {
+                private final RestTemplate restTemplate = new RestTemplate();
+
+                public Pokemon findByName(String name) {
+                    return restTemplate.getForObject(
+                        "https://pokeapi.co/api/v2/pokemon/{name}",
+                        Pokemon.class,
+                        name);
+                }
+            }
+            """,
+            q("¿RestTemplate bloquea el hilo?",
+                "Sí. La llamada es bloqueante: el hilo espera la respuesta HTTP. Bajo alta concurrencia esto consume más recursos que WebClient."),
+            q("¿Cuándo sigue siendo válido RestTemplate?",
+                "En aplicaciones síncronas simples, migraciones graduales o cuando el equipo no domina programación reactiva. Pero no se recomienda para nuevo código."));
+
+        // ===== PROFILES Y CONFIGURACIÓN EXTERNA =====
+        Concept profilesConfig = concept("Profiles y Configuración Externa", "profiles-config", Block.SPRING_BOOT, 6,
+            "Spring Boot permite externalizar configuración y activar perfiles para adaptar la aplicación a diferentes entornos sin cambiar código.",
+            null,
+            cq("¿Qué son los profiles?",
+                "Mecanismo para agrupar beans y configuración según el entorno: dev, test, prod. Se activan con @Profile o spring.profiles.active."),
+            cq("¿Orden de prioridad de propiedades?",
+                "1. Línea de comandos. 2. Variables de entorno. 3. application-{profile}.properties. 4. application.properties. 5. @PropertySource. Ver documentación completa en Spring Externalized Configuration."),
+            cq("¿application.properties vs application.yml?",
+                "Ambos sirven. YAML es más legible para configuraciones jerárquicas. Properties es más simple y común."));
+        sc(profilesConfig, "Uso de profiles", "profiles-uso", 1,
+            "Activar y definir beans por perfil.",
+            """
+            # application.properties
+            spring.profiles.active=dev
+
+            # application-dev.properties
+            server.port=8081
+            logging.level.org.springframework=DEBUG
+
+            // Bean solo en dev
+            @Bean
+            @Profile("dev")
+            public DataSource h2DataSource() { ... }
+            """,
+            q("¿@Profile a nivel de @Configuration?",
+                "Sí. Puedes anotar toda una clase @Configuration con @Profile para cargarla solo en un entorno específico."),
+            q("¿Múltiples profiles?",
+                "Se pueden activar varios separados por comas: spring.profiles.active=dev,local. Los archivos application-{profile} se cargan en orden."));
+        sc(profilesConfig, "Variables de entorno", "env-vars", 2,
+            "Spring Boot mapea automáticamente variables de entorno a propiedades. Es clave para despliegues en la nube.",
+            """
+            # application.properties referencia env var con valor por defecto
+            spring.datasource.url=${DATABASE_URL:jdbc:h2:mem:testdb}
+
+            # Render / Heroku pasan DATABASE_URL como variable de entorno
+            """,
+            q("¿Por qué externalizar configuración?",
+                "Permite usar el mismo artefacto (jar) en todos los entornos. Las credenciales y URLs no viajan en el código fuente."),
+            q("¿@Value?",
+                "Permite inyectar propiedades en campos: @Value(\"${app.nombre}\") private String nombre;. Para propiedades obligatorias considera @ConfigurationProperties."));
+
+        // ===== SPRING CACHE =====
+        Concept springCache = concept("Spring Cache", "spring-cache", Block.SPRING_BOOT, 7,
+            "Spring Cache abstrae el uso de cachés. Con anotaciones como @Cacheable, @CachePut y @CacheEvict puedes cachear resultados de métodos sin acoplar el código a una implementación concreta.",
+            null,
+            cq("¿Qué es @Cacheable?",
+                "Anotación que indica que el resultado de un método debe almacenarse en caché. En siguientes llamadas con la misma clave se devuelve el valor cacheado sin ejecutar el método."),
+            cq("¿Implementaciones de caché?",
+                "ConcurrentMapCache (por defecto en memoria), Caffeine, EhCache, Redis. Spring Boot autoconfigura la que elijas añadiendo la dependencia correspondiente."),
+            cq("¿CacheEvict vs CachePut?",
+                "@CacheEvict elimina entradas de la caché. @CachePut actualiza la caché con el resultado del método sin evitar su ejecución."));
+        sc(springCache, "Caché básica", "cache-basico", 1,
+            "Ejemplo de cacheo de resultado con clave basada en parámetros.",
+            """
+            @Service
+            public class ProductoService {
+
+                @Cacheable(value = "productos", key = "#id")
+                public Producto findById(Long id) {
+                    return productoRepository.findById(id)
+                        .orElseThrow(() -> new NotFoundException("Producto no encontrado"));
+                }
+
+                @CacheEvict(value = "productos", key = "#id")
+                public void deleteById(Long id) {
+                    productoRepository.deleteById(id);
+                }
+            }
+            """,
+            q("¿Cómo generar la clave de caché?",
+                "Por defecto usa todos los parámetros. Puedes personalizar con SpEL: key = \"#id\", key = \"#user.email\" o usar keyGenerator personalizado."),
+            q("¿Qué pasa si el método lanza excepción?",
+                "No se cachea nada. El error se propaga normalmente."));
+        sc(springCache, "Caffeine / Redis", "cache-providers", 2,
+            "Dependencias para cachés de producción.",
+            """
+            <!-- Caffeine (caché local en memoria) -->
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+            </dependency>
+
+            <!-- Redis (caché distribuida) -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-data-redis</artifactId>
+            </dependency>
+            """,
+            q("¿Caffeine vs Redis?",
+                "Caffeine es caché local en memoria, muy rápida pero no compartida entre instancias. Redis es distribuida, ideal para múltiples réplicas de la aplicación."),
+            q("¿TTL en caché?",
+                "Time To Live: tiempo máximo que una entrada permanece en caché. Se configura en el proveedor, por ejemplo spring.cache.redis.time-to-live=10m."));
+
+        // ===== MENSAJERÍA =====
+        Concept mensajeria = concept("Mensajería con Spring", "mensajeria", Block.SPRING_BOOT, 8,
+            "La mensajería asíncrona desacopla servicios y mejora resiliencia. Spring ofrece abstracciones para JMS, RabbitMQ, Kafka y eventos internos.",
+            null,
+            cq("¿Mensajería síncrona vs asíncrona?",
+                "Síncrona: el emisor espera respuesta (HTTP). Asíncrona: el emisor publica y continúa; el receptor procesa cuando puede. Reduce acoplamiento y mejora tolerancia a fallos."),
+            cq("¿RabbitMQ vs Kafka?",
+                "RabbitMQ es un broker de mensajería tradicional con colas y exchanges. Kafka es una plataforma de streaming distribuida con topics y particiones. Kafka escala mejor para grandes volúmenes y procesamiento de eventos."),
+            cq("¿JMS vs AMQP?",
+                "JMS es la API Java para mensajería (ActiveMQ). AMQP es un protocolo abierto (RabbitMQ). Spring Template abstrae ambos con JmsTemplate y RabbitTemplate."));
+        sc(mensajeria, "Kafka básico", "kafka-basico", 1,
+            "Conceptos fundamentales de Apache Kafka.",
+            """
+            // Productor
+            @Service
+            public class PedidoProducer {
+                private final KafkaTemplate<String, Pedido> kafkaTemplate;
+
+                public void enviar(Pedido pedido) {
+                    kafkaTemplate.send("pedidos", pedido.getId().toString(), pedido);
+                }
+            }
+
+            // Consumidor
+            @KafkaListener(topics = "pedidos", groupId = "grupo-pedidos")
+            public void recibir(Pedido pedido) { ... }
+            """,
+            q("¿Topic, partition, offset?",
+                "Topic es la categoría de mensajes. Partition divide el topic para paralelismo. Offset es la posición de un mensaje dentro de una partición."),
+            q("¿Consumer group?",
+                "Grupo de consumidores que leen de un topic. Cada partición es consumida por un solo miembro del grupo, permitiendo escalado horizontal."));
+        sc(mensajeria, "RabbitMQ básico", "rabbitmq-basico", 2,
+            "Conceptos de RabbitMQ: exchange, queue y routing key.",
+            """
+            @Service
+            public class NotificacionProducer {
+                private final RabbitTemplate rabbitTemplate;
+
+                public void enviar(Notificacion n) {
+                    rabbitTemplate.convertAndSend("exchange.notificaciones",
+                        "notificaciones.email", n);
+                }
+            }
+
+            @RabbitListener(queues = "cola.email")
+            public void recibir(Notificacion n) { ... }
+            """,
+            q("¿Exchange types?",
+                "Direct: routing key exacta. Topic: patrones de routing key. Fanout: envía a todas las colas vinculadas. Headers: filtra por cabeceras."),
+            q("¿Ventaja de RabbitMQ?",
+                "Routing flexible, confirmaciones de entrega, colas duraderas, TTL y dead letter exchanges. Muy maduro para mensajería empresarial."));
+
+        // ===== LOGGING =====
+        Concept logging = concept("Logging", "logging", Block.TOOLS, 5,
+            "El logging permite registrar eventos de la aplicación para debugging, monitorización y auditoría. En Java se usa SLF4J como fachada y Logback/Log4j2 como implementación.",
+            null,
+            cq("¿SLF4J?",
+                "Simple Logging Facade for Java. Interfaz abstracta que permite cambiar la implementación de logging sin modificar el código. Es el estándar en Spring Boot."),
+            cq("¿Niveles de log?",
+                "TRACE < DEBUG < INFO < WARN < ERROR. Cada nivel indica severidad. En producción suele usarse INFO o WARN; en desarrollo DEBUG."),
+            cq("¿Logback vs Log4j2?",
+                "Logback es el default de Spring Boot. Log4j2 ofrece mejor rendimiento y más funcionalidades avanzadas. Ambos implementan SLF4J."));
+        sc(logging, "SLF4J con Lombok", "slf4j-lombok", 1,
+            "Ejemplo de logging con SLF4J. En proyectos con Lombok se usa @Slf4j, pero aquí mostramos la forma explícita.",
+            """
+            import org.slf4j.Logger;
+            import org.slf4j.LoggerFactory;
+
+            public class PedidoService {
+                private static final Logger log = LoggerFactory.getLogger(PedidoService.class);
+
+                public void procesar(Long id) {
+                    log.info("Procesando pedido {}", id);
+                    log.debug("Detalle del pedido: {}", pedido);
+                    log.error("Error al procesar pedido {}", id, ex);
+                }
+            }
+            """,
+            q("¿Por qué no usar System.out.println?",
+                "No tiene niveles, no se puede desactivar por paquete, no añade timestamps ni contexto, y ralentiza la aplicación si escribe a consola sincrónicamente."),
+            q("¿Placeholders {}?",
+                "SLF4J usa {} para interpolar argumentos. No concatena strings si el nivel no está activo, mejorando rendimiento. Ejemplo: log.debug(\"valor {}\", costoso()) evita llamar a costoso() si DEBUG está desactivado."));
+        sc(logging, "Configuración de Logback", "logback-config", 2,
+            "Configuración típica en logback-spring.xml.",
+            """
+            <configuration>
+                <appender name="CONSOLA" class="ch.qos.logback.core.ConsoleAppender">
+                    <encoder>
+                        <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
+                    </encoder>
+                </appender>
+
+                <logger name="com.javaconcepts" level="DEBUG"/>
+                <root level="INFO">
+                    <appender-ref ref="CONSOLA"/>
+                </root>
+            </configuration>
+            """,
+            q("¿logback.xml vs logback-spring.xml?",
+                "logback-spring.xml permite usar perfiles de Spring (<springProfile>) y propiedades. Se carga después de application.properties."),
+            q("¿Structured logging?",
+                "Logs en formato JSON facilitan análisis con ELK, Loki o CloudWatch. Se configura con encoders específicos como logstash-logback-encoder."));
+
+        // ===== GRADLE =====
+        Concept gradle = concept("Gradle", "gradle", Block.TOOLS, 6,
+            "Gradle es una alternativa moderna a Maven para construir proyectos Java. Usa Groovy o Kotlin DSL y un modelo de tareas incremental.",
+            null,
+            cq("¿Gradle vs Maven?",
+                "Gradle usa scripts declarativos o programáticos (build.gradle.kts), tiene mejor rendimiento gracias a build cache y task incremental, y es más flexible. Maven es más estándar y estructurado con XML."),
+            cq("¿build.gradle.kts?",
+                "Script de build escrito en Kotlin. Define plugins, dependencies, repositories, tasks y configuración del proyecto."),
+            cq("¿Tasks en Gradle?",
+                "Unidades de trabajo como compileJava, test, bootRun, jar. Puedes crear tasks personalizadas y encadenarlas."));
+        sc(gradle, "build.gradle.kts básico", "gradle-basico", 1,
+            "Ejemplo mínimo de build Gradle con Kotlin DSL para Spring Boot.",
+            """
+            plugins {
+                java
+                id("org.springframework.boot") version "3.3.5"
+                id("io.spring.dependency-management") version "1.1.6"
+            }
+
+            group = "com.ejemplo"
+            version = "1.0.0"
+
+            java {
+                sourceCompatibility = JavaVersion.VERSION_21
+            }
+
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                implementation("org.springframework.boot:spring-boot-starter-web")
+                testImplementation("org.springframework.boot:spring-boot-starter-test")
+            }
+            """,
+            q("¿implementation vs api vs compileOnly?",
+                "implementation: dependencia interna no expuesta. api: se expone a consumidores del módulo. compileOnly: necesaria para compilar, no en runtime. Equivalente a provided en Maven."),
+            q("¿Gradle wrapper?",
+                "Scripts gradlew y gradlew.bat que permiten ejecutar la versión correcta de Gradle sin instalarla globalmente. Se usa en CI/CD."));
+        sc(gradle, "Comandos Gradle", "gradle-comandos", 2,
+            "Comandos comunes.",
+            """
+            ./gradlew build
+            ./gradlew test
+            ./gradlew bootRun
+            ./gradlew bootJar
+            ./gradlew clean
+            """,
+            q("¿gradlew build vs bootJar?",
+                "build ejecuta tests y genera artefactos. bootJar crea el jar ejecutable de Spring Boot. bootRun lanza la aplicación."),
+            q("¿Por qué Gradle es más rápido?",
+                "Build cache reusa outputs de tareas anteriores. Task incremental solo reejecuta lo necesario. Daemon mantiene un proceso Gradle vivo entre builds."));
+
         // Guardar/actualizar conceptos raíz de forma idempotente
         List<Concept> allRoots = List.of(
             clase, objeto, herencia, polimorfismo, encapsulamiento,
@@ -3102,12 +3623,13 @@ public class DataLoader implements CommandLineRunner {
             multithreading, sincronizacion, concurrenciaAvanzada,
             plataformaJava,
             programacionFuncional, designPatterns, jvmGc, serializacion,
-            springFramework, ioc, springMvc, springSecurity, restApi, openapi, servletsFiltros,
+            springFramework, ioc, springMvc, springSecurity, jwtSecurity, restApi, openapi, servletsFiltros,
             springBoot, springBootTesting, microservicios, actuator,
-            jpa, hibernate,
+            httpClient, profilesConfig, springCache, mensajeria,
+            jpa, hibernate, transacciones, jdbc,
             testing,
             solid, cleanCode,
-            maven, git, docker, sql
+            maven, git, docker, sql, logging, gradle
         );
         for (Concept root : allRoots) {
             saveOrMergeRoot(root);
