@@ -64,9 +64,9 @@ Documento de seguimiento de cambios, tareas realizadas y pendientes.
 
 ### Media prioridad
 
+- [x] Añadir botón "Copiar" en los bloques de código.
 - [ ] Añadir tests unitarios para `ConceptService`.
 - [ ] Añadir tests de integración para controllers con `@WebMvcTest`.
-- [ ] Añadir botón "Copiar" en los bloques de código.
 - [ ] Mejorar visualización de código en móvil.
 - [ ] Añadir modo oscuro / toggle de tema.
 - [ ] Mejorar el buscador para incluir también respuestas de Q&A.
