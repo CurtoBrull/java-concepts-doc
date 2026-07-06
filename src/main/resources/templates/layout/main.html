@@ -71,6 +71,35 @@
         document.addEventListener('DOMContentLoaded', () => {
             hljs.highlightAll();
 
+            // Botón copiar en bloques de código
+            document.querySelectorAll('pre code').forEach(codeBlock => {
+                const pre = codeBlock.parentElement;
+                pre.classList.add('relative', 'group');
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'copy-btn absolute top-2 right-2 px-2 py-1 text-xs font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition focus:opacity-100';
+                button.textContent = 'Copiar';
+                button.setAttribute('aria-label', 'Copiar código');
+
+                button.addEventListener('click', () => {
+                    const text = codeBlock.textContent || '';
+                    navigator.clipboard.writeText(text).then(() => {
+                        button.textContent = '¡Copiado!';
+                        button.classList.add('text-green-400');
+                        setTimeout(() => {
+                            button.textContent = 'Copiar';
+                            button.classList.remove('text-green-400');
+                        }, 1500);
+                    }).catch(() => {
+                        button.textContent = 'Error';
+                        setTimeout(() => button.textContent = 'Copiar', 1500);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+
             const STORAGE_KEY = 'javaConceptsSidebar';
             const groups = document.querySelectorAll('.block-group');
             const savedState = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
