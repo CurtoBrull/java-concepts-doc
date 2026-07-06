@@ -53,6 +53,12 @@ Documento de seguimiento de cambios, tareas realizadas y pendientes.
 - [x] Corregir `Dockerfile` para evitar copiar múltiples jars.
 - [x] Desplegar en Render con base de datos Neon.
 
+### Fase 5: Testing
+
+- [x] Añadir tests unitarios para `ConceptService`.
+- [x] Añadir tests de integración para `ConceptController` con `@WebMvcTest`.
+- [x] Configurar `maven-surefire-plugin` con `-Dnet.bytebuddy.experimental=true` para compatibilidad con Java 25.
+
 ---
 
 ## Tareas pendientes
@@ -67,8 +73,8 @@ Documento de seguimiento de cambios, tareas realizadas y pendientes.
 ### Media prioridad
 
 - [x] Añadir botón "Copiar" en los bloques de código.
-- [ ] Añadir tests unitarios para `ConceptService`.
-- [ ] Añadir tests de integración para controllers con `@WebMvcTest`.
+- [x] Añadir tests unitarios para `ConceptService`.
+- [x] Añadir tests de integración para controllers con `@WebMvcTest`.
 - [ ] Mejorar visualización de código en móvil.
 - [x] Añadir modo oscuro / toggle de tema.
 - [ ] Mejorar el buscador para incluir también respuestas de Q&A.
