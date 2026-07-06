@@ -16,6 +16,8 @@ public interface ConceptRepository extends JpaRepository<Concept, Long> {
 
     List<Concept> findAllByParentIsNullOrderByBlockAscOrderIndexAsc();
 
+    List<Concept> findAllByParentIsNullOrderByOrderIndexAsc();
+
     List<Concept> findByBlockAndParentIsNullOrderByOrderIndexAsc(Block block);
 
     @Query("SELECT DISTINCT c.block FROM Concept c WHERE c.parent IS NULL ORDER BY c.block")

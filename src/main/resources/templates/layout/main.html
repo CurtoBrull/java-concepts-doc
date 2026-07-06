@@ -17,7 +17,7 @@
             <a href="/map" class="text-xl font-bold tracking-tight block">☕ Java Concepts</a>
         </div>
 
-        <nav class="p-4 space-y-4">
+        <nav class="p-4 space-y-2">
             <!-- Search -->
             <form action="/search" method="get" class="relative">
                 <input type="text" name="q" placeholder="Buscar..."
@@ -25,25 +25,37 @@
                        th:value="${keyword}"/>
             </form>
 
+            <div class="flex justify-end gap-2 text-xs">
+                <button type="button" id="expand-all" class="text-slate-400 hover:text-white">Expandir todo</button>
+                <span class="text-slate-600">|</span>
+                <button type="button" id="collapse-all" class="text-slate-400 hover:text-white">Colapsar todo</button>
+            </div>
+
             <!-- Block groups -->
-            <div th:each="blockDto : ${blockTree}" class="space-y-1">
-                <h3 class="text-xs font-bold uppercase text-slate-400 tracking-wider px-2 py-1"
-                    th:text="${blockDto.block.name().replace('_', ' ')}">Bloque</h3>
-                <ul class="space-y-0.5">
-                    <li th:each="concept : ${blockDto.concepts}">
-                        <a th:href="@{/concept/{slug}(slug=${concept.slug})}"
-                           class="block px-3 py-1.5 text-sm rounded-md hover:bg-slate-800 transition text-slate-200 font-medium"
-                           th:classappend="${concept.subConcepts.isEmpty()} ? 'opacity-50 cursor-default' : ''"
-                           th:text="${concept.title}">Concepto</a>
-                        <ul class="ml-4 border-l border-slate-700 pl-2 space-y-0.5" th:if="${!concept.subConcepts.isEmpty()}">
-                            <li th:each="sub : ${concept.subConcepts}">
-                                <a th:href="@{/subconcept/{slug}(slug=${sub.slug})}"
-                                   class="block px-3 py-1 text-sm rounded-md hover:bg-slate-800 transition text-slate-400 hover:text-white"
-                                   th:text="${sub.title}">Subconcepto</a>
-                            </li>
-                        </ul>
-                    </li>
-                </ul>
+            <div th:each="blockDto : ${blockTree}" class="block-group" th:data-block="${blockDto.block.name()}">
+                <button type="button" class="block-toggle w-full flex items-center justify-between px-2 py-1.5 text-xs font-bold uppercase text-slate-400 tracking-wider hover:text-white hover:bg-slate-800 rounded-md transition">
+                    <span th:text="${blockDto.block.name().replace('_', ' ')}">Bloque</span>
+                    <svg class="chevron w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div class="block-content hidden mt-1">
+                    <ul class="space-y-0.5">
+                        <li th:each="concept : ${blockDto.concepts}">
+                            <a th:href="@{/concept/{slug}(slug=${concept.slug})}"
+                               class="sidebar-link block px-3 py-1.5 text-sm rounded-md hover:bg-slate-800 transition text-slate-200 font-medium"
+                               th:classappend="${concept.subConcepts.isEmpty()} ? 'opacity-50 cursor-default' : ''"
+                               th:text="${concept.title}">Concepto</a>
+                            <ul class="ml-4 border-l border-slate-700 pl-2 space-y-0.5" th:if="${!concept.subConcepts.isEmpty()}">
+                                <li th:each="sub : ${concept.subConcepts}">
+                                    <a th:href="@{/subconcept/{slug}(slug=${sub.slug})}"
+                                       class="sidebar-link block px-3 py-1 text-sm rounded-md hover:bg-slate-800 transition text-slate-400 hover:text-white"
+                                       th:text="${sub.title}">Subconcepto</a>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </nav>
     </aside>
@@ -58,6 +70,76 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             hljs.highlightAll();
+
+            const STORAGE_KEY = 'javaConceptsSidebar';
+            const groups = document.querySelectorAll('.block-group');
+            const savedState = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+
+            function setGroupState(blockName, expanded) {
+                const group = document.querySelector(`.block-group[data-block="${blockName}"]`);
+                if (!group) return;
+                const content = group.querySelector('.block-content');
+                const chevron = group.querySelector('.chevron');
+                if (expanded) {
+                    content.classList.remove('hidden');
+                    chevron.classList.add('rotate-180');
+                } else {
+                    content.classList.add('hidden');
+                    chevron.classList.remove('rotate-180');
+                }
+            }
+
+            function saveState() {
+                const state = {};
+                groups.forEach(group => {
+                    const blockName = group.dataset.block;
+                    const expanded = !group.querySelector('.block-content').classList.contains('hidden');
+                    state[blockName] = expanded;
+                });
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            }
+
+            groups.forEach(group => {
+                const toggle = group.querySelector('.block-toggle');
+                const content = group.querySelector('.block-content');
+                toggle.addEventListener('click', () => {
+                    content.classList.toggle('hidden');
+                    toggle.querySelector('.chevron').classList.toggle('rotate-180');
+                    saveState();
+                });
+            });
+
+            document.getElementById('expand-all').addEventListener('click', () => {
+                groups.forEach(group => setGroupState(group.dataset.block, true));
+                saveState();
+            });
+
+            document.getElementById('collapse-all').addEventListener('click', () => {
+                groups.forEach(group => setGroupState(group.dataset.block, false));
+                saveState();
+            });
+
+            // Detectar categoría activa según la URL actual
+            const currentPath = window.location.pathname;
+            let activeBlock = null;
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                const linkPath = new URL(link.href).pathname;
+                if (linkPath === currentPath) {
+                    link.classList.add('bg-slate-800', 'text-white');
+                    activeBlock = link.closest('.block-group')?.dataset.block;
+                }
+            });
+
+            // Aplicar estado guardado o, si no hay, expandir solo la categoría activa
+            const hasSavedState = Object.keys(savedState).length > 0;
+            groups.forEach(group => {
+                const blockName = group.dataset.block;
+                if (hasSavedState) {
+                    setGroupState(blockName, savedState[blockName] === true);
+                } else {
+                    setGroupState(blockName, blockName === activeBlock);
+                }
+            });
         });
     </script>
 </body>

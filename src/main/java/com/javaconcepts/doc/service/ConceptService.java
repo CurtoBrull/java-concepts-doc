@@ -26,12 +26,15 @@ public class ConceptService {
     }
 
     public List<BlockTreeDto> getBlockTree() {
-        List<Concept> rootConcepts = conceptRepository.findAllByParentIsNullOrderByBlockAscOrderIndexAsc();
+        List<Concept> rootConcepts = conceptRepository.findAllByParentIsNullOrderByOrderIndexAsc();
         Map<Block, List<Concept>> byBlock = rootConcepts.stream()
                 .collect(Collectors.groupingBy(Concept::getBlock));
 
         List<BlockTreeDto> result = new ArrayList<>();
-        for (Block block : byBlock.keySet()) {
+        List<Block> orderedBlocks = Arrays.stream(Block.values())
+                .filter(byBlock::containsKey)
+                .toList();
+        for (Block block : orderedBlocks) {
             List<Concept> concepts = byBlock.get(block);
             List<ConceptTreeDto> conceptDtos = concepts.stream()
                     .map(this::toConceptTreeDto)
