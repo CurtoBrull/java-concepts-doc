@@ -78,6 +78,7 @@ Documento de seguimiento de cambios, tareas realizadas y pendientes.
 - [ ] Mejorar visualización de código en móvil.
 - [x] Añadir modo oscuro / toggle de tema.
 - [ ] Mejorar el buscador para incluir también respuestas de Q&A.
+- [ ] Cambiar el icono de la pestaña del navegador (favicon).
 
 ### Baja prioridad
 
