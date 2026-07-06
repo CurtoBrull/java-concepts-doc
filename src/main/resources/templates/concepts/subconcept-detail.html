@@ -16,26 +16,26 @@
                th:text="${subConcept.conceptTitle}">Concepto</a>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 mb-8">
-            <h1 class="text-3xl font-bold text-slate-900 mb-6" th:text="${subConcept.title}">Subconcepto</h1>
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 mb-8 dark:bg-slate-900 dark:border-slate-700 transition-colors">
+            <h1 class="text-3xl font-bold text-slate-900 mb-6 dark:text-slate-100" th:text="${subConcept.title}">Subconcepto</h1>
 
             <div class="prose max-w-none">
-                <div class="text-slate-700 leading-relaxed whitespace-pre-line mb-8"
+                <div class="text-slate-700 leading-relaxed whitespace-pre-line mb-8 dark:text-slate-300"
                      th:text="${subConcept.description}">Descripción</div>
             </div>
         </div>
 
         <div th:if="${subConcept.codeExample != null and !subConcept.codeExample.isBlank()}" class="mb-8">
-            <h2 class="text-lg font-semibold text-slate-800 mb-3">Ejemplo de código</h2>
+            <h2 class="text-lg font-semibold text-slate-800 mb-3 dark:text-slate-100">Ejemplo de código</h2>
             <pre class="rounded-lg overflow-x-auto shadow-sm"><code class="language-java" th:text="${subConcept.codeExample}">Código</code></pre>
         </div>
 
-        <div th:if="${!subConcept.questions.isEmpty()}" class="bg-amber-50 border border-amber-200 rounded-xl p-6">
-            <h2 class="text-lg font-semibold text-amber-900 mb-4">Preguntas de entrevista</h2>
+        <div th:if="${!subConcept.questions.isEmpty()}" class="bg-amber-50 border border-amber-200 rounded-xl p-6 dark:bg-amber-900/20 dark:border-amber-800">
+            <h2 class="text-lg font-semibold text-amber-900 mb-4 dark:text-amber-200">Preguntas de entrevista</h2>
             <div class="space-y-4">
-                <div th:each="q : ${subConcept.questions}" class="border-b border-amber-200 last:border-0 pb-4 last:pb-0">
-                    <p class="font-semibold text-amber-900 mb-2" th:text="${q.question}">Pregunta</p>
-                    <p class="text-amber-800 text-sm leading-relaxed pl-4 border-l-2 border-amber-300" th:text="${q.answer}">Respuesta</p>
+                <div th:each="q : ${subConcept.questions}" class="border-b border-amber-200 last:border-0 pb-4 last:pb-0 dark:border-amber-800">
+                    <p class="font-semibold text-amber-900 mb-2 dark:text-amber-200" th:text="${q.question}">Pregunta</p>
+                    <p class="text-amber-800 text-sm leading-relaxed pl-4 border-l-2 border-amber-300 dark:text-amber-100 dark:border-amber-600" th:text="${q.answer}">Respuesta</p>
                 </div>
             </div>
         </div>
