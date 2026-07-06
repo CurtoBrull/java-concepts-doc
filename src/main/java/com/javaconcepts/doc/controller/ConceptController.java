@@ -39,6 +39,7 @@ public class ConceptController {
         ConceptDetailDto concept = conceptService.getConceptDetailBySlug(slug)
                 .orElseThrow(() -> new RuntimeException("Concepto no encontrado: " + slug));
         model.addAttribute("concept", concept);
+        model.addAttribute("blockTree", conceptService.getBlockTree());
         return "concepts/concept-detail";
     }
 
@@ -47,6 +48,7 @@ public class ConceptController {
         SubConceptDetailDto subConcept = conceptService.getSubConceptBySlug(slug)
                 .orElseThrow(() -> new RuntimeException("Subconcepto no encontrado: " + slug));
         model.addAttribute("subConcept", subConcept);
+        model.addAttribute("blockTree", conceptService.getBlockTree());
         return "concepts/subconcept-detail";
     }
 
@@ -55,6 +57,7 @@ public class ConceptController {
         List<SearchResultDto> results = conceptService.search(keyword);
         model.addAttribute("results", results);
         model.addAttribute("keyword", keyword);
+        model.addAttribute("blockTree", conceptService.getBlockTree());
         return "concepts/search-results";
     }
 }
