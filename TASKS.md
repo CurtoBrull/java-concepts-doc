@@ -39,6 +39,7 @@ Documento de seguimiento de cambios, tareas realizadas y pendientes.
 - [x] Resaltar enlace activo y expandir su categoría automáticamente.
 - [x] Reordenar bloques de forma natural: JAVA CORE → JPA HIBERNATE → SPRING → SPRING BOOT → CLEAN CODE SOLID → TOOLS.
 - [x] Optimizar `DataLoader`: reducir consultas de inicio con `@BatchSize` y `saveAll`.
+- [x] Corregir que el sidebar no se renderizaba en páginas de concepto, subconcepto y búsqueda.
 
 ### Fase 4: Preparación para producción
 
@@ -56,8 +57,9 @@ Documento de seguimiento de cambios, tareas realizadas y pendientes.
 
 ### Alta prioridad
 
-- [ ] Verificar que la aplicación desplegada responde correctamente en producción.
-- [ ] Comprobar que todos los conceptos y subconceptos se cargan en la URL de Render.
+- [x] Verificar que la aplicación desplegada responde correctamente en producción.
+- [x] Comprobar que todos los conceptos y subconceptos se cargan en la URL de Render.
+- [ ] Redesplegar en Render el último commit (`479dc9f`) para que el sidebar aparezca también en páginas de concepto/subconcepto/búsqueda.
 - [ ] Revisar logs de Render en busca de errores o advertencias.
 
 ### Media prioridad
@@ -86,6 +88,10 @@ Documento de seguimiento de cambios, tareas realizadas y pendientes.
 - **Base de datos**: H2 en desarrollo local, PostgreSQL (Neon) en producción.
 - **Seguridad**: no hay autenticación; la app es pública.
 - **Variables de entorno en producción**: `NEON_URL`, `NEON_USER`, `NEON_PASSWORD`, `SPRING_PROFILES_ACTIVE=neon`.
+
+## Bugs corregidos recientemente
+
+- **Sidebar vacío en conceptos/subconceptos/búsqueda**: el `blockTree` solo se añadía al modelo en `/map`. Solución: añadir `conceptService.getBlockTree()` en los métodos `conceptDetail`, `subConceptDetail` y `search` de `ConceptController`. Corrección en commit `479dc9f`.
 
 ---
 
