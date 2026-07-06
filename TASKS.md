@@ -40,6 +40,8 @@ Documento de seguimiento de cambios, tareas realizadas y pendientes.
 - [x] Reordenar bloques de forma natural: JAVA CORE → JPA HIBERNATE → SPRING → SPRING BOOT → CLEAN CODE SOLID → TOOLS.
 - [x] Optimizar `DataLoader`: reducir consultas de inicio con `@BatchSize` y `saveAll`.
 - [x] Corregir que el sidebar no se renderizaba en páginas de concepto, subconcepto y búsqueda.
+- [x] Añadir botón "Copiar" en bloques de código.
+- [x] Añadir modo oscuro / toggle de tema con persistencia en `localStorage`.
 
 ### Fase 4: Preparación para producción
 
@@ -59,7 +61,7 @@ Documento de seguimiento de cambios, tareas realizadas y pendientes.
 
 - [x] Verificar que la aplicación desplegada responde correctamente en producción.
 - [x] Comprobar que todos los conceptos y subconceptos se cargan en la URL de Render.
-- [ ] Redesplegar en Render el último commit (`479dc9f`) para que el sidebar aparezca también en páginas de concepto/subconcepto/búsqueda.
+- [ ] Redesplegar en Render los últimos commits (`479dc9f`, `4ec4e13`, `abf529c`) para activar sidebar en todas las páginas, botón copiar y modo oscuro.
 - [ ] Revisar logs de Render en busca de errores o advertencias.
 
 ### Media prioridad
@@ -68,7 +70,7 @@ Documento de seguimiento de cambios, tareas realizadas y pendientes.
 - [ ] Añadir tests unitarios para `ConceptService`.
 - [ ] Añadir tests de integración para controllers con `@WebMvcTest`.
 - [ ] Mejorar visualización de código en móvil.
-- [ ] Añadir modo oscuro / toggle de tema.
+- [x] Añadir modo oscuro / toggle de tema.
 - [ ] Mejorar el buscador para incluir también respuestas de Q&A.
 
 ### Baja prioridad
