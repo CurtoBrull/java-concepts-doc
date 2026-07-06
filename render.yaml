@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: free
     branch: main
-    healthCheckPath: /
+    healthCheckPath: /actuator/health
     envVars:
       - key: NEON_URL
         sync: false

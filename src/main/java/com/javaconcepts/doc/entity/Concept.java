@@ -37,10 +37,12 @@ public class Concept {
 
     @OneToMany(mappedBy = "concept", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orderIndex ASC")
+    @org.hibernate.annotations.BatchSize(size = 50)
     private List<SubConcept> subConcepts = new ArrayList<>();
 
     @OneToMany(mappedBy = "concept", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
+    @org.hibernate.annotations.BatchSize(size = 50)
     private List<ConceptQuestion> questions = new ArrayList<>();
 
     public Concept() {

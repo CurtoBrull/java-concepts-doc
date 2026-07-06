@@ -10,8 +10,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Component
 public class DataLoader implements CommandLineRunner {
@@ -3631,46 +3630,60 @@ public class DataLoader implements CommandLineRunner {
             solid, cleanCode,
             maven, git, docker, sql, logging, gradle
         );
-        for (Concept root : allRoots) {
-            saveOrMergeRoot(root);
+
+        // Carga masiva de datos existentes para reducir consultas N+1
+        List<Concept> existingRoots = conceptRepository.findAllByParentIsNullOrderByOrderIndexAsc();
+        Map<String, Concept> existingBySlug = new HashMap<>();
+        Map<Long, Set<String>> questionTextsByConcept = new HashMap<>();
+        Map<Long, Set<String>> subConceptSlugsByConcept = new HashMap<>();
+
+        for (Concept root : existingRoots) {
+            existingBySlug.put(root.getSlug(), root);
+            questionTextsByConcept.put(root.getId(),
+                root.getQuestions().stream()
+                    .map(ConceptQuestion::getQuestion)
+                    .collect(HashSet::new, Set::add, Set::addAll));
+            subConceptSlugsByConcept.put(root.getId(),
+                root.getSubConcepts().stream()
+                    .map(SubConcept::getSlug)
+                    .collect(HashSet::new, Set::add, Set::addAll));
         }
-    }
 
-    private void saveOrMergeRoot(Concept newRoot) {
-        Optional<Concept> existingOpt = conceptRepository.findBySlug(newRoot.getSlug());
-        if (existingOpt.isEmpty()) {
-            conceptRepository.save(newRoot);
-            return;
-        }
-
-        Concept existing = existingOpt.get();
-        existing.setDescription(newRoot.getDescription());
-        existing.setCodeExample(newRoot.getCodeExample());
-        existing.setBlock(newRoot.getBlock());
-
-        for (ConceptQuestion newQ : newRoot.getQuestions()) {
-            boolean exists = existing.getQuestions().stream()
-                    .anyMatch(q -> q.getQuestion().equals(newQ.getQuestion()));
-            if (!exists) {
-                existing.addQuestion(new ConceptQuestion(newQ.getQuestion(), newQ.getAnswer()));
+        List<Concept> toSave = new ArrayList<>();
+        for (Concept newRoot : allRoots) {
+            Concept existing = existingBySlug.get(newRoot.getSlug());
+            if (existing == null) {
+                toSave.add(newRoot);
+                continue;
             }
-        }
 
-        for (SubConcept newSc : newRoot.getSubConcepts()) {
-            boolean exists = existing.getSubConcepts().stream()
-                    .anyMatch(sc -> sc.getSlug().equals(newSc.getSlug()));
-            if (!exists) {
-                SubConcept sc = new SubConcept(
-                        newSc.getTitle(), newSc.getSlug(), newSc.getOrderIndex(),
-                        newSc.getDescription(), newSc.getCodeExample());
-                for (SubConceptQuestion newSq : newSc.getQuestions()) {
-                    sc.addQuestion(new SubConceptQuestion(newSq.getQuestion(), newSq.getAnswer()));
+            existing.setDescription(newRoot.getDescription());
+            existing.setCodeExample(newRoot.getCodeExample());
+            existing.setBlock(newRoot.getBlock());
+
+            Set<String> existingQuestions = questionTextsByConcept.getOrDefault(existing.getId(), Set.of());
+            for (ConceptQuestion newQ : newRoot.getQuestions()) {
+                if (!existingQuestions.contains(newQ.getQuestion())) {
+                    existing.addQuestion(new ConceptQuestion(newQ.getQuestion(), newQ.getAnswer()));
                 }
-                existing.addSubConcept(sc);
             }
+
+            Set<String> existingSubConcepts = subConceptSlugsByConcept.getOrDefault(existing.getId(), Set.of());
+            for (SubConcept newSc : newRoot.getSubConcepts()) {
+                if (!existingSubConcepts.contains(newSc.getSlug())) {
+                    SubConcept sc = new SubConcept(
+                            newSc.getTitle(), newSc.getSlug(), newSc.getOrderIndex(),
+                            newSc.getDescription(), newSc.getCodeExample());
+                    for (SubConceptQuestion newSq : newSc.getQuestions()) {
+                        sc.addQuestion(new SubConceptQuestion(newSq.getQuestion(), newSq.getAnswer()));
+                    }
+                    existing.addSubConcept(sc);
+                }
+            }
+            toSave.add(existing);
         }
 
-        conceptRepository.save(existing);
+        conceptRepository.saveAll(toSave);
     }
 
     // Helper methods (sin guardar inmediatamente; se hace batch al final)
