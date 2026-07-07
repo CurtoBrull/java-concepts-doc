@@ -4224,6 +4224,220 @@ public class DataLoader implements CommandLineRunner {
                 "LocalDateTime NO tiene timezone. 2024-03-10T02:30 puede existir o no dependiendo de DST (a las 2am se avanza a 3am en US). Esto causa problemas: un instante puede no tener representación local. Instant y ZonedDateTime handle DST correctamente. Nunca uses LocalDateTime para timestamps.")
         );
 
+        // ===== GARBAGE COLLECTORS =====
+        Concept garbageCollectors = concept("Garbage Collectors", "garbage-collectors", Block.JAVA_CORE, 33,
+            "La JVM ofrece varios Garbage Collectors, cada uno optimizado para diferentes casos de uso: throughput máximo, latencia mínima, o footprint mínimo. Elegir el GC correcto puede impactar significativamente el rendimiento. Desde Java 9, G1 es el default; desde Java 11, ZGC está production-ready.",
+            null,
+            cq("¿Por qué hay tantos Garbage Collectors?",
+                "No hay GC perfecto. Diferentes aplicaciones tienen diferentes necesidades: batch processing quiere máximo throughput (throughput GC). APIs金融 want pause times cortos (low-latency GC). Microservicios necesitan ambos. Cada GC prioriza diferentes trade-offs entre throughput, latency y memory footprint."),
+            cq("¿Qué GC usar hoy en día?",
+                "Java 17+: G1 es el default y correcto para la mayoría. Para aplicaciones con requisitos estrictos de latencia (<10ms pauses) y heaps >32GB, usa ZGC. Para containers con memory constraints, prueba Shenandoah. Serial GC para micros simple o legacy."),
+            cq("¿Qué es stop-the-world (STW)?",
+                "Cuando el GC necesita活得 para marcar o compactar objetos, todas las aplicaciones threads se paran. STW pauses son la razón de latencia en aplicaciones Java. G1 y ZGC minimizan STW con concurrencia.")
+        );
+        sc(garbageCollectors, "Serial GC", "gc-serial", 1,
+            "Single-threaded GC. Usa un solo thread para todas las operaciones de GC. Simple pero puede causar pausas largas.",
+            """
+            # Activar Serial GC
+            -XX:+UseSerialGC
+
+            # Características
+            - Un solo thread (mark, sweep, compact)
+            - Stop-the-world completo durante GC
+            - Compactación completa del heap
+            - Sin overhead de sincronización entre threads
+
+            # Cuando usar
+            - Aplicaciones simples (batch, CLI tools)
+            - Containers con CPU limitada (< 2 cores)
+            - Heap < 100MB
+            - Donde la simplicidad importa más que performance
+
+            # Desventajas
+            - Pausas pueden ser de muchos segundos con heaps grandes
+            - No aprovecha multi-core
+            """,
+            q("¿Serial GC sigue siendo relevante?",
+                "Para micros triviales o environments restringidos, sí. En cloud/container environments modernos con múltiples cores, no es práctica. Pero para debugging o sistemas muy simples, su simplicidad es ventaja.")
+        );
+        sc(garbageCollectors, "Parallel GC (Throughput)", "gc-parallel", 2,
+            "También llamado 'Throughput GC' o 'PS Scavenge/Parallel Old'. Usa múltiples threads para Minor y Major GC. Optimizado para throughput máximo.",
+            """
+            # Activar Parallel GC
+            -XX:+UseParallelGC
+
+            # Características
+            - Multiple threads para GC paralelo
+            - Throughput GC por defecto antes de Java 9
+            - Eden -> Survivor -> Old Gen pipeline
+            - Compactación paralela
+
+            # Cuando usar
+            - Batch processing (ETL, analytics)
+            - Sistemas donde throughput > latency
+            - Jobs que no tienen requisitos estrictos de pausa
+            - Java 8 y anteriores (era el default)
+
+            # Desventajas
+            - Pausas pueden ser largas (stop-the-world)
+            - No optimizado para latencia
+            - No suitable para aplicaciones interactivas
+            """,
+            q("¿Parallel GC vs Serial GC?",
+                "Parallel usa múltiples cores, Serial uno solo. Parallel puede ser 10x+ más rápido en sistemas multi-core para workloads batch. Pero ambos tienen stop-the-world completo. Parallel es el predecessor de G1.")
+        );
+        sc(garbageCollectors, "G1 GC (Balanced)", "gc-g1", 3,
+            "Garbage First (G1) es el default desde Java 9. Divide el heap en regiones de igual tamaño. Balancea throughput y latency. Ideal para aplicaciones de servidor.",
+            """
+            # Activar G1 (default desde Java 9)
+            -XX:+UseG1GC
+
+            # Características
+            - Heap dividido en regiones (no generational fijo)
+            - G1跟踪 regiones con más garbage (Garbage First)
+            - Concurrent marking (no todo es STW)
+            - Mixed collections para Old Gen
+            - Pause time target configurable (-XX:MaxGCPauseMillis)
+
+            # Regionas del heap G1
+            - Humongous regions: objetos > 50% del heap
+            - Regular regions: objetos normales
+            - Free regions: disponibles
+
+            # Parámetros importantes
+            -XX:MaxGCPauseMillis=200       # Objetivo de pausa máxima
+            -XX:G1HeapRegionSize=16m       # Tamaño de region (1MB-32MB)
+            -XX:InitiatingHeapOccupancyPercent=45  # Cuando empezar ciclo GC
+
+            # Cuando usar
+            - Aplicaciones de servidor (webs, APIs)
+            - Java 11+ en producción
+            - Buen punto de partida para cualquier aplicación
+            """,
+            q("¿Cómo funciona el concurrent marking de G1?",
+                "G1 usa un algoritmo similar a CMS: Initial Mark (STW, marca roots), Concurrent Mark (marca objetos vivos), Remark (STW, completa marking), Cleanup (libera regiones vacías). Esto reduce tiempo STW comparado con Parallel GC.")
+        );
+        sc(garbageCollectors, "ZGC (Ultra-Low Latency)", "gc-zgc", 4,
+            "ZGC está diseñado para aplicaciones que requieren pausas muy cortas (<10ms) incluso con heaps de muchos GB. Available en production desde Java 15.",
+            """
+            # Activar ZGC (experimental en Java 11-14, production desde Java 15)
+            -XX:+UseZGC
+
+            # Características
+            - Pausas < 10ms sin importar tamaño del heap
+            - Throughput competitivo con G1 (~15% overhead)
+            - No compactación tradicional (load barriers + coloring)
+            - Heap hasta 16TB (Java 21+)
+            - Concurrent everywhere: marking, relocation, reference processing
+
+            # Como funciona
+            - Colored pointers: bits extra en referencias para tracking
+            - Barrierde carga: cuando lees una referencia, ZGC verifica color
+            - Concurrent relocation: mueve objetos sin parar threads
+
+            # Parámetros
+            -XX:MaxGCPauseMillis=5    # Objetivo de pausa ultra-baja
+            -XX:+UseZGC              # Activar ZGC
+            -Xmx64g                  # Puede manejar heaps muy grandes
+
+            # Cuando usar
+            - Aplicaciones金融, trading systems
+            - APIs con SLA estrictos de latencia
+            - Microservicios con requisitos de respuesta < 100ms
+            - Java 17+ LTS con requisitos de latencia
+            """,
+            q("¿ZGC realmente no tiene stop-the-world?",
+                "ZGC tiene muy breves pausas de <1ms para:root marking y non-generational phases. Son tan cortas que la aplicación apenas las nota. El overhead de throughput es ~15% mayor que G1 en algunos benchmarks, pero换来 latency ultra-baja."),
+            q("ZGC vs G1?",
+                "G1: pausas de 200-500ms típicas, throughput ligeramente mayor. ZGC: pausas <10ms, mismo heap. G1 para mayoría de aplicaciones. ZGC cuando tienes SLAs de latencia estrictos.")
+        );
+        sc(garbageCollectors, "Shenandoah (Low Latency)", "gc-shenandoah", 5,
+            "Shenandoah es un GC de baja latencia similar a ZGC pero funciona con Older JVMs (Java 8+) y tiene diferente implementación (no colored pointers).",
+            """
+            # Activar Shenandoah
+            -XX:+UseShenandoahGC
+
+            # Características
+            - Pausas < 10ms independientes del heap size
+            - Concurrent compaction (como ZGC)
+            - Funciona con Java 8-update (no solo Java moderno)
+            - Brooks pointers en lugar de colored pointers
+            - Throughput ligeramente menor que G1 (~10-20% overhead)
+
+            # Comparación con ZGC
+            - ZGC: requiere Java 11+, usa colored pointers (más eficiente)
+            - Shenandoah: compatible con Java 8, usa Brooks pointers (overhead extra)
+
+            # Cuando usar
+            - Si estás en Java 8 y necesitas baja latencia
+            - Contenedores con memory constraints
+            -代替 ZGC si no puedes usar Java 17+
+            """,
+            q("¿Shenandoah o ZGC?",
+                "Si puedes usar Java 17+: ZGC. Si estás en Java 8/11: Shenandoah. ZGC tiene mejor throughput y soporta heaps más grandes. Shenandoah tiene más overhead pero funciona con older JDKs.")
+        );
+        sc(garbageCollectors, "Epsilon GC (Testing)", "gc-epsilon", 6,
+            "Epsilon es un GC 'no-op' que分配 memoria pero nunca reclama. Útil para testing y short-lived applications.",
+            """
+            # Activar Epsilon
+            -XX:+UseEpsilonGC
+
+            # Características
+            - Solo asigna memoria, nunca libera
+            - Cuando el heap se llena, sale con OOM
+            - Sin overhead de GC (zero GC overhead)
+            - Útil para contenedores que terminan antes de llenar heap
+
+            # Casos de uso
+            - Testing de memoria
+            - Aplicaciones que terminan antes de llenar heap
+            - Short-lived batch jobs
+            - Containers/serverless con límites de memoria claros
+
+            # PRECAUCIÓN
+            - No usar en producción si la aplicación asigna más de Xmx
+            - Diseñado para casos muy específicos
+            """,
+            q("¿Cuándo usar Epsilon GC?",
+                "Epsilon es para edge cases: testing, very short lived processes, или когда ты уверен que nunca llenarás el heap. No es para producción normal.")
+        );
+        sc(garbageCollectors, "Cómo elegir GC", "gc-elegir", 7,
+            "Guía práctica para elegir el Garbage Collector correcto.",
+            """
+            # Árbol de decisión
+
+            # 1. Java version?
+            Java 8 -> Parallel GC (default) o Shenandoah para low latency
+            Java 11+ -> G1 (default) o ZGC para low latency
+
+            # 2. Que importa más?
+            Throughput (batch) -> Parallel GC
+            Latencia (APIS, interactivo) -> G1 o ZGC
+            Memoria limitada -> G1 o Serial
+
+            # 3. Tamaño del heap?
+            < 4GB -> G1 está bien
+            > 4GB con latencia -> ZGC
+            > 32GB -> ZGC obligatorio (G1 tiene problemas)
+
+            # 4. Requisitos de pausa?
+            < 500ms acceptable -> G1 (default)
+            < 10ms necesario -> ZGC
+
+            # JVM args para diferentes perfiles
+            # Servidor web normal (Java 17+)
+            -XX:+UseG1GC -XX:MaxGCPauseMillis=200
+
+            # Low latency (Java 17+)
+            -XX:+UseZGC -XX:MaxGCPauseMillis=5 -Xmx32g
+
+            # Batch processing
+            -XX:+UseParallelGC -XX:+UseParallelOldGC
+            """,
+            q("¿Cómo monitorizar el GC?",
+                "Usa -Xlog:gc*:file=gc.log para logging. jstat -gcutil <pid> 1000 para monitoring en tiempo real. VisualVM, JConsole, o Prometheus con JMX exporter para dashboards. GCEasy.io para analizar logs de GC.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
