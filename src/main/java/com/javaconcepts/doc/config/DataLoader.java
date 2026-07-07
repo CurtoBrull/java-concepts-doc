@@ -3547,6 +3547,86 @@ public class DataLoader implements CommandLineRunner {
                 "Usa NumberFormat o DecimalFormat. new DecimalFormat(\"#,##0.00\").format(bd.getValue()). O usa String.format(Locale.US, \"%.2f\", bd.doubleValue()) aunque pierde precisión. Para money en web, mejor enviar BigDecimal y formatear en frontend.")
         );
 
+        // ===== VAR (TYPE INFERENCE) =====
+        Concept varConcept = concept("var - Type Inference", "var-type-inference", Block.JAVA_CORE, 27,
+            "var (Java 10+) permite al compilador inferir el tipo de una variable local a partir de su inicialización. Reduce boilerplate en variables con tipos largos o complejos. El tipo se resuelve en compile-time, no runtime. No es 'dynamic typing' ni 'variant'; es compile-time type inference.",
+            null,
+            cq("¿Qué es var y cómo funciona?",
+                "var es un modificador de tipo para variables locales que dice al compilador 'infiere el tipo de esta variable'. El compilador mira el lado derecho (new ArrayList<String>(), \"hola\", etc.) y determina el tipo estático. En bytecode, el tipo estárá presente. var no es JavaScript: no es dynamic typing; el tipo se fija en compilación."),
+            cq("¿var reemplaza a Object o a tipos primitivos?",
+                "No. var es solo para variables locales (dentro de métodos, no para campos ni parámetros). El inicializador debe proporcionar suficiente información para inferir. var x = 1 infiere int, no Object. No puedes hacer var sin inicialización: 'var x;' es error."),
+            cq("¿Cuál es la diferencia entre var y Object o dynamic?",
+                "Object es un tipo. var infiere el tipo específico (Object si es new Object()). var no existe en runtime; el bytecode tiene el tipo real inferido. var no es como 'def' en Python o 'var' en JavaScript. Java sigue siendo statically typed; var solo ahorra escritura.")
+        );
+        sc(varConcept, "Ejemplos y limitaciones", "var-ejemplos", 1,
+            "Casos de uso apropiados y limitaciones de var.",
+            """
+            // BUEN USO DE VAR
+            var lista = new ArrayList<String>();  // infiere ArrayList<String>
+            var stream = list.stream();            // infiere Stream<String>
+            var mapa = new HashMap<String, List<Integer>>();  // tipo largo -> limpio
+            var pattern = Pattern.compile(\"pattern\");  // evita repetir tipo
+
+            // var infiere el tipo EXACTO
+            var map = new LinkedHashMap<String, Integer>();  // LinkedHashMap, no Map
+
+            // MAL USO - reduce legibilidad
+            var obj = new Object();  // ¿por qué no Object directamente?
+            var x = getSomeValue();  // ¿qué tipo es? ¿de dónde viene?
+
+            // ERROR - var sin inicialización
+            var mensaje;  // COMPILATION ERROR
+
+            // ERROR - lambda sin tipo target
+            var f = () -> System.out.println(\"hola\");  // ERROR
+
+            // BIEN - lambda con contexto
+            Comparator<String> c = (a, b) -> a.compareTo(b);  // tipo explícito para lambda
+            """,
+            q("¿var puede usarse para campos de clase?",
+                "NO. var solo es para variables locales dentro de métodos/constructores/inicializadores. No para campos de clase, parámetros de método, tipos de retorno. Esto es porque var requiere inicialización local para inferir."),
+            q("¿var infiere el tipo más específico o el más general?",
+                "El tipo más específico. var lista = new ArrayList<String>() infiere ArrayList<String>, no List<String>. Esto es importante: pierdes flexibilidad si declaras como var en lugar de List<String>. Si necesitas polimorfismo, declara el tipo explícitamente.")
+        );
+        sc(varConcept, "Buenas prácticas", "var-buenas-practicas", 2,
+            "Cuándo usar var y cuándo evitarlo.",
+            """
+            // USA VAR cuando...
+            // 1. Tipo es obvio del lado derecho
+            var service = new UserServiceImpl();  // Obvio que es UserService
+            var request = new CreateUserRequestDTO();  // DTO name hint
+
+            // 2. Tipo es verboso
+            var result = service.calculateRevenue(
+                LocalDate.of(2024, 1, 1),
+                LocalDate.of(2024, 12, 31),
+                Currency.getInstance(Locale.US)
+            );
+
+            // 3. El tipo es irrelevante (solo lo usas como parámetro)
+            users.stream()
+                .map(User::getName)
+                .filter(name -> name.startsWith(\"A\"))
+                .collect(Collectors.toList());
+
+            // EVITA VAR cuando...
+            // 1. El tipo ayuda a documentar el código
+            long timestamp = System.currentTimeMillis();  // clear
+            var ts = System.currentTimeMillis();  // ¿long? ¿int?
+
+            // 2. Cambio de tipo podría romper código silenciosamente
+            var result = calculate();  // hoy devuelve User, mañana String
+            System.out.println(result.getName());  // roto si cambió
+
+            // 3. Null inicialización
+            var user = getUser();  // ¿User? ¿null? ¿Optional<User>?
+            """,
+            q("¿var ayuda o perjudica la legibilidad?",
+                "Depende. var reduce ruido cuando el tipo es obvio o muy largo. Pero si el nombre de variable no da pista del tipo, var puede oscurecer. Guía: si el tipo ayuda a documentar,úsalo explícito. Si el tipo es obvio del nombre de variable o del inicializador, var es OK."),
+            q("¿var funciona con diamond operator (<>)?",
+                "Sí. var lista = new ArrayList<>(); infiere ArrayList<Object>. Para inferir correctamente el tipo genérico, necesitas el <> o el tipo explícito. new ArrayList<String>() funciona bien con var.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
