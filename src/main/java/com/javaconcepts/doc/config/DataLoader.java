@@ -800,6 +800,41 @@ public class DataLoader implements CommandLineRunner {
             q("¿Java tiene herencia múltiple de implementación?",
                 "No de clases. Solo puede extender una clase (extends). Pero puede implementar múltiples interfaces (implements A, B, C). Esto es herencia múltiple de tipo/contrato, no de estado o implementación (excepto default methods). Es más seguro que la herencia de implementación múltiple de C++.")
         );
+        sc(interfaceConcept, "@FunctionalInterface y Lambdas", "functional-interface-lambda", 4,
+            "Interfaces funcionales son el target de lambda expressions. @FunctionalInterface marca interfaces con un solo método abstracto.",
+            """
+            // @FunctionalInterface: marca interface como funcional
+            @FunctionalInterface
+            public interface Calculadora {
+                int calcular(int a, int b);
+            }
+
+            // Uso con lambda
+            Calculadora suma = (a, b) -> a + b;
+            Calculadora multiplica = (a, b) -> a * b;
+            suma.calcular(5, 3);  // 8
+            multiplica.calcular(5, 3);  // 15
+
+            // Lambdas con cuerpos bloque
+            Calculadora resta = (a, b) -> {
+                int resultado = a - b;
+                return resultado;
+            };
+
+            // Method reference como lambda
+            Calculadora referencia = Integer::sum;  // equivalent a (a, b) -> Integer.sum(a, b)
+
+            // Functional interfaces comunes en java.util.function
+            Function<String, Integer> length = String::length;
+            Consumer<String> printer = System.out::println;
+            Supplier<LocalDate> ahora = LocalDate::now;
+            Predicate<String> noVacia = String::isEmpty;
+            """,
+            q("¿Qué es @FunctionalInterface?",
+                "Anotación que marca una interfaz como funcional (exactamente un método abstracto). El compilador verifica que la interfaz cumple: solo un método abstracto (puede tener default, static, private). Si violas el contrato, error de compilación. Útil para documentar la intención y habilitar lambdas."),
+            q("¿Por qué lambdas solo funcionan con interfaces funcionales?",
+                "Una lambda es una implementación de una interfaz funcional. La lambda '(a, b) -> a + b' implementa una interfaz con un método abstracto que toma dos ints y devuelve int. El compiladorinfiere cuál método de cuál interfaz implementar basándose en el contexto.")
+        );
 
         Concept abstractClass = concept("Clase Abstracta", "clase-abstracta", Block.JAVA_CORE, 7,
             "Una clase abstracta es una clase que no puede instanciarse directamente, solo puede heredarse. Puede tener métodos abstractos (sin implementación que las subclases deben proporcionar) y métodos concretos (con implementación). Define una jerarquía donde las subclases completan la implementación. Se declara con la palabra clave 'abstract'.",
