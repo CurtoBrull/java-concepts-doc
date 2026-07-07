@@ -3209,6 +3209,114 @@ public class DataLoader implements CommandLineRunner {
                 "joining() es más legible para casos simples. Internamente usa StringJoiner que es similar a StringBuilder. Para loops simples, joining() gana en legibilidad. Para lógica compleja con condiciones, StringBuilder sigue siendo apropiado.")
         );
 
+        // ===== OPTIONAL =====
+        Concept optionalConcept = concept("Optional\<T\>", "optional", Block.JAVA_CORE, 24,
+            "Optional (Java 8+) es un contenedor que puede contener o no un valor no nulo. Diseñado para evitar NullPointerException y eliminar null checks dispersos por el código. Obliga a tratar el caso de ausencia explícitamente. Es inmutable y thread-safe.",
+            null,
+            cq("¿Qué problema resuelve Optional?",
+                "Optional elimina null checks dispersos (if (obj != null)). En lugar de null, usas Optional.empty(). Obliga al desarrollador a pensar en el caso de ausencia. Reduce NullPointerException. No es un reemplazo universal de null (no uses Optional para campos de entity, solo para retornos de métodos)."),
+            cq("¿Cuándo NO usar Optional?",
+                "NO usar Optional en: 1) Campos de entidades (@Entity), 2) Parámetros de método (preferible overloads o default values), 3) Colecciones (una colección vacía es mejor que Optional<List>), 4) Como clave de Map (Optional<KEY> es raro). Úsalo en RETORNOS de métodos donde la ausencia es semánticamente significativa."),
+            cq("¿Optional es un reemplazo de null?",
+                "Optional NO es un reemplazo universal de null. null sigue siendo válido para indicar 'no hay valor' en muchos contextos legacy. Optional es una mejora semántica: dice 'aquí puede no haber valor, trátalo'. Para campos de clase, sigue siendo mejor null + @NonNull que Optional<T> (menos overhead).")
+        );
+        sc(optionalConcept, "Creación y métodos básicos", "optional-basico", 1,
+            "Formas de crear Optional y métodos para consultar su estado.",
+            """
+            import java.util.Optional;
+
+            // Creación
+            Optional<String> vacio = Optional.empty();
+            Optional<String> nombre = Optional.of(\"Juan\");  // NO acepta null
+            Optional<String> nullable = Optional.ofNullable(\"Pedro\");  // Acepta null
+
+            //ofNullable es el más seguro: si sabes que puede ser null, usalo
+            Optional<String> seguro = Optional.ofNullable(maybeNull);
+
+            // Consultar
+            nombre.isPresent();      // true
+            nombre.isEmpty();        // false (Java 11+)
+            nombre.get();            // \"Juan\" (lanza NoSuchElementException si empty)
+
+            // IF presente
+            nombre.ifPresent(n -> System.out.println(n.length()));  // imprime 4
+            nombre.ifPresentOrElse(
+                n -> System.out.println(n),
+                () -> System.out.println(\"no hay nombre\")  // acción si empty
+            );
+            """,
+            q("¿of vs ofNullable?",
+                "Optional.of(value) lanza NullPointerException si value es null. Optional.ofNullable(value) devuelve Optional.empty() si value es null. Usa of() cuando SEPAS que el valor no es null. Usa ofNullable() cuando no estés seguro o venga de una fuente potencialmente null."),
+            q("¿get() vs orElse()?",
+                "get() lanza NoSuchElementException si empty. orElse(default) devuelve default si empty, o el valor si presente. orElseGet(supplier) es lazily evaluated (solo llama supplier si empty). orElseThrow() lanza excepción personalizada. orElse() siempre evalúa el argumento; orElseGet() solo si necesario.")
+        );
+        sc(optionalConcept, "Transformación y encadenamiento", "optional-encadenamiento", 2,
+            "map, flatMap, filter para transformar y encadenar operaciones sin null checks.",
+            """
+            Optional<Person> person = Optional.ofNullable(getPerson());
+
+            // map: transforma el valor si presente
+            Optional<String> ciudad = person.map(Person::getCiudad);
+            // ciudad es Optional<String>, empty si person era empty
+
+            // flatMap: cuando la transformación devuelve Optional
+            Optional<String> telefono = person.flatMap(Person::getTelefono);
+            // getTelefono() ya devuelve Optional<String>
+
+            // filter: mantiene valor si pasa el test
+            Optional<Person> adulto = person.filter(p -> p.getEdad() >= 18);
+
+            // Encadenamiento completo
+            String result = Optional.ofNullable(getPerson())
+                .map(Person::getCiudad)           // Optional<String>
+                .flatMap(this::getCiudadOptional) // Optional<String>
+                .map(String::toUpperCase)         // Optional<String>
+                .orElse(\"DESCONOCIDA\");
+
+            // Equivalente sin Optional:
+            Person p = getPerson();
+            String result2 = \"DESCONOCIDA\";
+            if (p != null) {
+                Ciudad c = p.getCiudad();
+                if (c != null) {
+                    String nombre = c.getNombre();
+                    if (nombre != null) result2 = nombre.toUpperCase();
+                }
+            }
+            """,
+            q("¿map vs flatMap en Optional?",
+                "map transforma el valor directamente. flatMap transforma Y 'aplana' un nivel: el supplier devuelve Optional, y flatMap evita envolverlo en otro Optional. Si tu transformación devuelve Optional<X>, usa flatMap. Si devuelve X, usa map."),
+            q("¿Por qué Optional reduce null checks?",
+                "Cada map/flatMap/filter encadenado solo se ejecuta si hay valor. Es como una cadena de null checks pero expresada de forma funcional. El código es más corto, más legible, y el compilador te fuerza a tratar el empty case con orElse/orElseGet/orElseThrow.")
+        );
+        sc(optionalConcept, "orElse, orElseGet, orElseThrow", "optional-orelse", 3,
+            "Manejo de valores por defecto y excepciones en Optional.",
+            """
+            Optional<String> opt = Optional.ofNullable(getNullableString());
+
+            // orElse: SIEMPRE evaluated (aunque el Optional tenga valor)
+            String a = opt.orElse(getDefaultString());  // getDefaultString() siempre llamado
+
+            // orElseGet: lazily evaluated (solo si Optional empty)
+            String b = opt.orElseGet(() -> getDefaultString());  // solo si empty
+
+            // orElseThrow: lanza excepción si empty
+            String c = opt.orElseThrow(() -> new RuntimeException(\"no hay valor\"));
+
+            // orElseThrow sin lambda (Java 10+)
+            String d = opt.orElseThrow();  // lanza NoSuchElementException
+
+            // ¿Cuándo usar cada uno?
+            // - orElse: valor default simple (literales, constantes)
+            // - orElseGet: cálculo costoso del default (solo si necesario)
+            // - orElseThrow: la ausencia es una situación excepcional
+            """,
+            q("¿Cuál es la diferencia de rendimiento entre orElse y orElseGet?",
+                "orElse siempre evalúa su argumento, incluso si el Optional tiene valor. Si el argumento es costoso (new String(\"...\"), llamada a método cara), usas orElseGet para evitar el coste cuando no es necesario. En valores simples (literales), no hay diferencia medible."),
+            q("¿Optional tiene método isPresent()?",
+                "Sí, pero evita usarlo. if (opt.isPresent()) { return opt.get(); } es más largo que opt.orElse(). Solo usa isPresent() si necesitas hacer DOS cosas diferentes: una si presente y otra si ausente, no solo devolver el valor. Para eso es mejor ifPresentOrElse().")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
