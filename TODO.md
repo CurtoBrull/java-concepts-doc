@@ -22,12 +22,12 @@
 
 ### 🟡 AMPLIAR (explicaciones superficiales)
 - [x] **Clone** - shallow copy vs deep copy, CopyConstructor, CloneNotSupportedException (IMPLEMENTADO)
-- [ ] **Anotaciones** - @Override, @Deprecated, @FunctionalInterface, @SuppressWarnings, @SafeVarargs
+- [x] **Anotaciones** - @Override, @Deprecated, @FunctionalInterface, @SuppressWarnings, @SafeVarargs (IMPLEMENTADO)
 - [ ] **Streams** - collect, partitionBy, groupingBy, flatMap, reduce en profundidad
-- [ ] **Parallel Streams** - ForkJoinPool, orden vs paralelismo, cuando NO usarlos
-- [ ] **Reflection** - Class.forName(), getDeclaredMethods(), uso en frameworks (Spring, JUnit)
-- [ ] **Garbage Collectors** - G1 vs ZGC vs Shenandoah vs Serial, cómo elegir, flags
-- [ ] **JVM Memory Model** - heap/stack/metaspace, generational garbage collection
+- [x] **Parallel Streams** - ForkJoinPool, orden vs paralelismo, cuando NO usarlos (IMPLEMENTADO)
+- [x] **Reflection** - Class.forName(), getDeclaredMethods(), uso en frameworks (Spring, JUnit) (IMPLEMENTADO)
+- [x] **Garbage Collectors** - G1 vs ZGC vs Shenandoah vs Serial, cómo elegir, flags (IMPLEMENTADO)
+- [x] **JVM Memory Model** - heap/stack/metaspace, generational garbage collection (IMPLEMENTADO)
 - [x] **DateTime API (Java 8+)** - LocalDateTime, ZonedDateTime, Instant, Duration, Period, ZoneId (IMPLEMENTADO)
 
 ### 🟢 MEJORAR CONTENIDO EXISTENTE
