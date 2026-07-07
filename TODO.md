@@ -28,7 +28,7 @@
 - [ ] **Reflection** - Class.forName(), getDeclaredMethods(), uso en frameworks (Spring, JUnit)
 - [ ] **Garbage Collectors** - G1 vs ZGC vs Shenandoah vs Serial, cómo elegir, flags
 - [ ] **JVM Memory Model** - heap/stack/metaspace, generational garbage collection
-- [ ] **DateTime API (Java 8+)** - LocalDateTime, ZonedDateTime, Instant, Duration, Period, ZoneId
+- [x] **DateTime API (Java 8+)** - LocalDateTime, ZonedDateTime, Instant, Duration, Period, ZoneId (IMPLEMENTADO)
 
 ### 🟢 MEJORAR CONTENIDO EXISTENTE
 - [ ] **equals y hashCode** (concepto "Objeto") - ampliar con código de implementación correcta
