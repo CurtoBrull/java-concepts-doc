@@ -32,7 +32,7 @@
 
 ### 🟢 MEJORAR CONTENIDO EXISTENTE
 - [ ] **equals y hashCode** (concepto "Objeto") - ampliar con código de implementación correcta
-- [ ] **interfaces** - ampliar con @FunctionalInterface y ejemplos de lambda
+- [x] **interfaces** - ampliar con @FunctionalInterface y ejemplos de lambda (IMPLEMENTADO)
 
 ### Conceptos Java Core YA IMPLEMENTADOS
 - [x] **Paso por Valor y Referencia**
