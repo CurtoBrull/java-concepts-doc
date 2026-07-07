@@ -3627,6 +3627,137 @@ public class DataLoader implements CommandLineRunner {
                 "Sí. var lista = new ArrayList<>(); infiere ArrayList<Object>. Para inferir correctamente el tipo genérico, necesitas el <> o el tipo explícito. new ArrayList<String>() funciona bien con var.")
         );
 
+        // ===== CLONE - SHALLOW VS DEEP COPY =====
+        Concept cloneConcept = concept("Clone - Shallow vs Deep Copy", "clone-shallow-deep-copy", Block.JAVA_CORE, 28,
+            "Clonar un objeto significa crear una copia. Shallow copy copia los campos primitivos y referencias, compartiendo los objetos referenciados. Deep copy copia recursivamente todos los objetos internos. Clone en Java es problemático (Cloneable marker interface, CloneNotSupportedException, efectos secundarios). Copy constructor o factory methods son alternativas preferidas.",
+            null,
+            cq("¿Qué es shallow copy?",
+                "Shallow copy crea un nuevo objeto pero copia las referencias de los campos, no los objetos referenciados. Si tienes Persona con campo Direccion direccion, la copia comparte el mismo objeto Direccion. Modificar la dirección de la copia afecta a la original."),
+            cq("¿Qué es deep copy?",
+                "Deep copy crea copias de TODOS los objetos, recursively. Cada objeto interno se copia también. La copia y la original son completamente independientes. Para deep copy, clone() por defecto es shallow; debes implementarlo manualmente o usar serialization/serialización."),
+            cq("¿Por qué clone() está deprecado en Effective Java?",
+                "clone() tiene muchos problemas: 1) Cloneable es marker interface sin métodos. 2) clone() protected en Object, necesitas sobrescribir public. 3) Lanza CloneNotSupportedException. 4) Field final no puede ser cloneado. 5) Constructor copy o static factory son más claros y seguros. Joshua Bloch recomienda: 'Prefer copy constructors over clone'.")
+        );
+        sc(cloneConcept, "Problemas de Object.clone()", "clone-problemas", 1,
+            "clone() tiene múltiples problemas de diseño que hacen que copy constructor sea preferible.",
+            """
+            // PROBLEMA 1: Cloneable marker interface no tiene métodos
+            public class Persona implements Cloneable {  // marker solo
+                private String nombre;
+                private Direccion direccion;  // objeto anidado
+
+                @Override
+                public Persona clone() {
+                    try {
+                        return (Persona) super.clone();  // throws!
+                    } catch (CloneNotSupportedException e) {
+                        throw new AssertionError();  // nunca pasa con Cloneable
+                    }
+                }
+            }
+
+            // PROBLEMA 2: Shallow copy por defecto
+            Persona original = new Persona(\"Juan\", new Direccion(\"Madrid\"));
+            Persona copia = original.clone();
+            copia.direccion.ciudad = \"Barcelona\";  // AFECTA original!
+
+            // PROBLEMA 3: Campo final no puede modificarse en clone
+            public class Ejemplo {
+                private final String valor;  // final, ¿cómo se clona?
+            }
+
+            // PROBLEMA 4: Los fields se copian uno a uno manualmente
+            @Override
+            public Ejemplo clone() {
+                Ejemplo c = (Ejemplo) super.clone();  // no puedes hacer nada con final
+                c.valor = this.valor;  // tienes que reasignar, ¿no defeats el propósito?
+                return c;
+            }
+            """,
+            q("¿Por qué CloneNotSupportedException existe?",
+                "Object.clone() lanza CloneNotSupportedException si la clase no implements Cloneable. Esto fuerza al programador a consciously hacer que una clase sea clonable. El problema es que este mecanismo era para 'safety' pero no funciona bien: cualquier class puede implements Cloneable y hacer shallow copy sin pensarlo."),
+            q("¿Cómo saber si necesitas shallow o deep copy?",
+                "Si tus campos son todos inmutables (String, wrappers, primitive) o compartes intencionalmente, shallow copy está bien. Si tienes objetos mutables que no quieres compartir, necesitas deep copy. Regla: si el objeto tiene objetos internos mutables, clone() por defecto no es suficiente.")
+        );
+        sc(cloneConcept, "Copy Constructor y Factory", "clone-copy-constructor", 2,
+            "Copy constructor y static factory methods son alternativas más seguras y claras a clone().",
+            """
+            public class Persona {
+                private final String nombre;
+                private final Direccion direccion;  // mutable
+
+                // COPY CONSTRUCTOR - la forma preferida
+                public Persona(Persona other) {
+                    this.nombre = other.nombre;
+                    this.direccion = new Direccion(other.direccion);  // deep copy
+                }
+
+                // FACTORY METHOD - alternativa
+                public static Persona copyOf(Persona original) {
+                    return new Persona(original.getNombre(),
+                        new Direccion(original.getDireccion().getCiudad()));
+                }
+            }
+
+            // Uso
+            Persona original = new Persona(\"Juan\", new Direccion(\"Madrid\"));
+            Persona copia = new Persona(original);  // copy constructor
+            copia.getDireccion().setCiudad(\"Barcelona\");  // no afecta original
+
+            // Con Java 16+ record, el copy constructor es automático
+            public record Persona(String nombre, Direccion direccion) {
+                // canonical constructor ya hace shallow copy
+                // Para deep copy, necesitas constructor explícito:
+                public Persona(Persona p) {
+                    this(p.nombre(), new Direccion(p.direccion()));
+                }
+            }
+            """,
+            q("¿Copy constructor vs clone()?",
+                "Copy constructor: 1) No lanza excepciones checked. 2) Tiene tipo explícito. 3) Puedes elegir shallow o deep. 4) No requiere marker interface. 5) Puede ser final. clone() tiene todos los problemas mencionados. Effective Java (Bloch) recomienda copy constructor como norma."),
+            q("¿Cuándo usar clone() todavía?",
+                " clone() puede ser aceptable para arrays (Arrays.copyOf() internamente lo usa). Para Collections, usa copy constructors de Collections o addAll(). clone() en arrays primitivos es rápido. Para objetos simples sin objetos internos mutables, clone() puede servir.")
+        );
+        sc(cloneConcept, "Serialización para Deep Copy", "clone-serialization", 3,
+            "Serialization permite deep copy genérico pero es lenta.",
+            """
+            // Deep copy via serialization (lento pero genérico)
+            public static <T> T deepCopy(T obj) {
+                try {
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    ObjectOutputStream oos = new ObjectOutputStream(bos);
+                    oos.writeObject(obj);
+                    oos.close();
+
+                    ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
+                    ObjectInputStream ois = new ObjectInputStream(bis);
+                    @SuppressWarnings(\"unchecked\")
+                    T copy = (T) ois.readObject();
+                    ois.close();
+                    return copy;
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+
+            // Requiere que todos los objetos sean Serializable
+            @Serializable
+            public class Persona implements Serializable {
+                private String nombre;
+                private Direccion direccion;  // también Serializable
+            }
+
+            // Alternativa: JSON serialization (más portable, más lenta)
+            ObjectMapper mapper = new ObjectMapper();
+            Persona copia = mapper.readValue(
+                mapper.writeValueAsString(original), Persona.class);
+            """,
+            q("¿Por qué la serialización es lenta para deep copy?",
+                "Tiene que serializar a bytes y deserializar. Creación de múltiples streams, reflection, overhead de procesamiento. Para objetos pequeños y pocas copias, está bien. Para objetos grandes o copias frecuentes, considera copy constructor o pooling de objetos."),
+            q("¿Jackson/JSON para deep copy tiene ventajas?",
+                "Sí: 1) Más portable entre lenguajes. 2) Legible/debuggable. 3) No requiere Serializable en todas partes. 4) Convierte a JSON string y back. No: 1) Más lento que binary serialization. 2) Date/Time handling diferente. 3) transient fields no se copian.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
