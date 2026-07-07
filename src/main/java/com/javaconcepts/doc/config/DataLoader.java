@@ -231,6 +231,39 @@ public class DataLoader implements CommandLineRunner {
             q("¿Una clase interna puede ser private?",
                 "Sí. Las clases internas pueden tener cualquier modificador de acceso (private, protected, public, default). Esto permite controlar su visibilidad. Una clase interna private es útil para encapsular вспомогательные классы que solo la externa usa.")
         );
+        sc(clase, "Lambda scope y effectively final", "lambda-scope", 8,
+            "Lambdas tienen scope diferente a clases internas. Variables externas deben ser effectively final.",
+            """
+            int factor = 10;  // effectively final (no modificada después)
+
+            // Lambda tiene acceso a fields y métodos del enclosing scope
+            Function<Integer, Integer> multiplicar = x -> x * factor;
+
+            // NO puedes modificar variable del enclosing scope
+            int contador = 0;
+            Runnable r = () -> {
+                contador++;  // ERROR: no puedes modificar variable externa
+            };
+
+            // Anonymous class tiene scope diferente
+            Runnable anon = new Runnable() {
+                @Override
+                public void run() {
+                    // Anonymous class puede shadow variables del enclosing scope
+                    // sin conflicto de nombre
+                    int factor = 5;  // esto es diferente a la variable outer
+                }
+            };
+
+            // Shadowing en lambda ES un error si ya existe variable con mismo nombre
+            // int factor = 5;  // descomentar causa error
+            // Function<Integer, Integer> m = x -> x * factor;  // error de compilación
+            """,
+            q("¿Qué es effectively final?",
+                "Una variable es effectively final si no es modificada después de su última asignación. El compilador la trata como final aunque no tenga la palabra 'final'. Las lambdas solo pueden acceder variables effectively final del enclosing scope."),
+            q("¿Lambda vs Anonymous class en scope?",
+                "Lambda: hereda el scope del enclosing method, no crea scope nuevo. Anonymous class: crea su propio scope, puede shadow variables del enclosing scope. Por eso puedes tener variables con el mismo nombre en anonymous class.")
+        );
         sc(clase, "Enums y Records", "enums-records", 9,
             "enum define un conjunto fijo de constantes. Es una clase especial con constructores privados. Records (Java 16+) son clases inmutables自动生成 getters, equals, hashCode, toString. Ambos son tipos de datos restringidos.",
             """
