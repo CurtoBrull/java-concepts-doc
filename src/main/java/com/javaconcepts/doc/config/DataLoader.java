@@ -4714,6 +4714,140 @@ public class DataLoader implements CommandLineRunner {
                 "Especifica qué elementos pueden tener la anotación. ElementType.METHOD, FIELD, TYPE (clase), PARAMETER, CONSTRUCTOR, ANNOTATION_TYPE, etc. Puedes combinar múltiples: @Target({ElementType.METHOD, ElementType.FIELD}).")
         );
 
+        // ===== REFLECTION =====
+        Concept reflection = concept("Reflection", "reflection", Block.JAVA_CORE, 36,
+            "Reflection permite examinar y manipular clases, métodos, campos en runtime sin conocerlos en tiempo de compilación. Es la base de frameworks como Spring (@Autowired), JUnit (test runners), Jackson (JSON serialization). Permite crear instancias, invocar métodos, y acceder a campos privados.",
+            null,
+            cq("¿Qué es reflection?",
+                "API de Java que permite inspectar y manipular clases, métodos, campos, constructores en runtime. Se usa para: frameworks (Spring, Hibernate), debuggers, testing (JUnit), serialization (Jackson). Permite hacer lo que harías en compile-time pero en runtime."),
+            cq("¿Por qué Spring usa reflection?",
+                "Spring necesita crear objetos y inyectar dependencias sin que el código de usuario tenga que escribir boilerplate. Usa reflection para: instanciar clases con Class.newInstance(), invocar métodos con Method.invoke(), acceder campos con Field.set(). @Autowired se procesa via reflection."),
+            cq("¿Cuáles son los riesgos de reflection?",
+                "1) Security bypass: puede acceder a miembros privados. 2) Performance: más lento que llamada directa. 3) Coupling: código tightly coupled a implementaciones concretas. 4) Fragilidad: cambios en clases pueden romper código que usa reflection sin warning.")
+        );
+        sc(reflection, "Class y getClass()", "reflection-class", 1,
+            "Obtener información de una clase en runtime.",
+            """
+            // Obtener Class de tres formas
+            Class<?> c1 = String.class;
+            Class<?> c2 = \"hola\".getClass();
+            Class<?> c3 = Class.forName(\"java.lang.String\");
+
+            // Nombre de la clase
+            c1.getName();        // \"java.lang.String\"
+            c1.getSimpleName();  // \"String\"
+            c1.getPackageName(); // \"java.lang\"
+
+            // Modifiers (public, final, abstract, etc)
+            int mods = c1.getModifiers();
+            Modifier.isPublic(mods);   // true
+            Modifier.isFinal(mods);   // true
+
+            // Miembros de la clase
+            c1.getMethods();          // todos los métodos públicos
+            c1.getDeclaredMethods(); // todos los métodos (incluyendo private)
+            c1.getFields();          // campos públicos
+            c1.getDeclaredFields();  // todos los campos
+
+            // Anotaciones
+            c1.getAnnotations();      // todas las anotaciones (@Deprecated, etc)
+            c1.getAnnotation(Deprecated.class);  // obtener anotación específica
+            """,
+            q("¿Class.forName() vs .class?",
+                "String.class es compile-time. Class.forName(\"String\") es runtime y puede cargar clases dinámicamente desde strings. forName() lanza ClassNotFoundException. .class es más rápido y checked at compile-time.")
+        );
+        sc(reflection, "Crear instancias e invocar métodos", "reflection-invoke", 2,
+            "Crear objetos e invocar métodos dinámicamente.",
+            """
+            // CREAR INSTANCIA
+            Class<?> clazz = Class.forName(\"com.example.MiClase\");
+            Object instance = clazz.getDeclaredConstructor().newInstance();
+
+            // CONSTRUCTOR CON PARÁMETROS
+            Constructor<?> ctor = clazz.getConstructor(String.class, int.class);
+            Object instance2 = ctor.newInstance(\"param\", 42);
+
+            // INVOCAR MÉTODO
+            Method metodo = clazz.getMethod(\"miMetodo\", String.class);
+            Object result = metodo.invoke(instance, \"arg\");
+
+            // MÉTODO ESTÁTICO
+            Method staticMethod = clazz.getMethod(\"metodoEstatico\");
+            staticMethod.invoke(null);  // sin instancia para static
+
+            // MÉTODO PRIVADO
+            Method privado = clazz.getDeclaredMethod(\"metodoPrivado\");
+            privado.setAccessible(true);  // rompo encapsulation
+            privado.invoke(instance);
+            """,
+            q("¿Por qué setAccessible(true)?",
+                "Por defecto, solo puedes invocar métodos públicos. setAccessible(true) rompe encapsulation y permite invocar métodos private/protected. Spring y Hibernate lo usan para DI y lazy loading. Puede fallar con SecurityManager enabled.")
+        );
+        sc(reflection, "Acceder campos y Arrays", "reflection-fields-arrays", 3,
+            "Leer y modificar campos, incluyendo privados.",
+            """
+            // CAMPO PÚBLICO
+            Field campo = MiClase.class.getField(\"campoPublico\");
+            Object valor = campo.get(instance);
+
+            // CAMPO PRIVADO
+            Field privado = MiClase.class.getDeclaredField(\"campoPrivado\");
+            privado.setAccessible(true);
+            Object valor2 = privado.get(instance);
+
+            // MODIFICAR CAMPO
+            privado.set(instance, \"nuevo valor\");
+
+            // ARRAYSMANIPULATION
+            int[] arr = (int[]) Array.newInstance(int.class, 5);
+            Array.set(arr, 0, 42);
+            int val = Array.get(arr, 0);
+
+            // Ejemplo práctico: Lombok @Setter genera este código
+            Field field = clazz.getDeclaredField(\"nombre\");
+            field.setAccessible(true);
+            field.set(obj, \"valor\");
+            """,
+            q("¿Para qué sirve reflection con arrays?",
+                "Crear arrays dinámicamente: Array.newInstance(int.class, 10). Útil para frameworks de serialización que necesitan crear arrays del tipo correcto en runtime sin conocer el tipo en compile-time.")
+        );
+        sc(reflection, "Uso en frameworks (Spring/JUnit)", "reflection-frameworks", 4,
+            "Cómo Spring y JUnit usan reflection internamente.",
+            """
+            // SPRING: @Autowired implementation simplificado
+            public Object createBean(Class<?> beanClass) {
+                Object bean = beanClass.getDeclaredConstructor().newInstance();
+                for (Field field : beanClass.getDeclaredFields()) {
+                    if (field.isAnnotationPresent(Autowired.class)) {
+                        Object dependency = createBean(field.getType());
+                        field.setAccessible(true);
+                        field.set(bean, dependency);
+                    }
+                }
+                return bean;
+            }
+
+            // JUNIT: @Test annotation discovery
+            for (Method method : testClass.getDeclaredMethods()) {
+                if (method.isAnnotationPresent(Test.class)) {
+                    Object testInstance = testClass.getDeclaredConstructor().newInstance();
+                    method.invoke(testInstance);  // ejecutar el test
+                }
+            }
+
+            // JACKSON: JSON serialization
+            for (Field field : clazz.getDeclaredFields()) {
+                if (field.isAnnotationPresent(JsonProperty.class)) {
+                    JsonProperty annotation = field.getAnnotation(JsonProperty.class);
+                    String jsonName = annotation.value();
+                    // serializar campo
+                }
+            }
+            """,
+            q("¿Por qué Spring prefiere constructor injection sobre field injection?",
+                "Field injection usa reflection para setAccessible(true), bypassing encapsulation. Constructor injection: 1) permite testing sin reflection, 2) field final puede ser immutable, 3) más claro qué dependencias tiene la clase, 4) puede validar null con @NonNull.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
