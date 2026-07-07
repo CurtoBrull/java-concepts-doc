@@ -1089,6 +1089,147 @@ public class DataLoader implements CommandLineRunner {
             q("¿Qué pasa si stream vacío llama findFirst()?",
                 "Devuelve Optional.empty(). No lanza excepción. Es la forma segura de buscar en colección potencialmente vacía. Debes verificar con isPresent() o usar orElse(), orElseGet(), orElseThrow().")
         );
+        sc(streams, "collect() y Collectors", "streams-collect", 4,
+            "collect() acumula elementos a una coleccion o computa un solo valor. Collectors tiene multiples metodos de acumulacion.",
+            """
+            List<String> nombres = List.of("Ana", "Pedro", "María", "Juan");
+
+            // toList() - inmutable
+            List<String> lista = nombres.stream().toList();
+
+            // toSet() - sin duplicados
+            Set<String> set = nombres.stream().collect(Collectors.toSet());
+
+            // toCollection - tipo especifico
+            LinkedList<String> linked = nombres.stream()
+                .collect(Collectors.toCollection(LinkedList::new));
+
+            // joining() - concatenar strings
+            String joined = nombres.stream()
+                .collect(Collectors.joining(\", \"));
+            // \"Ana, Pedro, María, Juan\"
+
+            // counting() - cuenta elementos
+            long count = nombres.stream().collect(Collectors.counting());
+
+            // summingInt, averagingInt, etc
+            double avgEdad = personas.stream()
+                .collect(Collectors.averagingInt(Persona::getEdad));
+            """,
+            q("¿Qué Collectors usar para grouping?",
+                "groupingBy() agrupa por clave. partitioningBy() agrupa por boolean (solo 2 grupos). mapping() transforma antes de agrupar. Collectors.groupingBy(Persona::getCiudad, Collectors.counting()) cuenta por grupo.")
+        );
+        sc(streams, "groupingBy y partitioningBy", "streams-grouping", 5,
+            "Agrupar elementos por criterios.",
+            """
+            // groupingBy - agrupa por campo
+            Map<String, List<Persona>> porCiudad = personas.stream()
+                .collect(Collectors.groupingBy(Persona::getCiudad));
+
+            // groupingBy con downstream collector
+            Map<String, Long> countPorCiudad = personas.stream()
+                .collect(Collectors.groupingBy(
+                    Persona::getCiudad,
+                    Collectors.counting()
+                ));
+
+            // groupingBy con multiple levels
+            Map<String, Map<Departamento, List<Persona>>> porCiudadYDepto = personas.stream()
+                .collect(Collectors.groupingBy(
+                    Persona::getCiudad,
+                    Collectors.groupingBy(Persona::getDepartamento)
+                ));
+
+            // partitioningBy - divide en 2 grupos segun predicate
+            Map<Boolean, List<Persona>> adultos = personas.stream()
+                .collect(Collectors.partitioningBy(p -> p.getEdad() >= 18));
+
+            List<Persona> adultosList = adultos.get(true);
+            List<Persona> ninosList = adultos.get(false);
+
+            // mapping - transforma antes de agrupar
+            Map<String, Set<String>> ciudadesNombres = personas.stream()
+                .collect(Collectors.groupingBy(
+                    Persona::getCiudad,
+                    Collectors.mapping(Persona::getNombre, Collectors.toSet())
+                ));
+            """,
+            q("¿partitioningBy vs groupingBy?",
+                "partitioningBy() solo puede dividir en 2 grupos (true/false segun predicate). groupingBy() puede dividir en cualquier numero de grupos segun valores del campo. partitioningBy es mas eficiente porque usa solo 2 buckets.")
+        );
+        sc(streams, "flatMap", "streams-flatmap", 6,
+            "flatMap transforma y aplana streams anidados.",
+            """
+            // PROBLEMA: map() devuelve Stream<Stream<T>>
+            List<List<String>> listas = List.of(
+                List.of(\"a\", \"b\"),
+                List.of(\"c\", \"d\")
+            );
+            Stream<Stream<String>> streams = listas.stream()
+                .map(List::stream);  // Stream<Stream<String>>
+
+            // SOLUCION: flatMap() aplana a Stream<String>
+            List<String> unificados = listas.stream()
+                .flatMap(List::stream)  // Stream<String>
+                .toList();
+            // [\"a\", \"b\", \"c\", \"d\"]
+
+            // Ejemplo: palabras de oraciones
+            List<String> oraciones = List.of(
+                \"Hola mundo\",
+                \"Java streams\"
+            );
+            List<String> palabras = oraciones.stream()
+                .flatMap(oracion -> Arrays.stream(oracion.split(\" \")))
+                .toList();
+            // [\"Hola\", \"mundo\", \"Java\", \"streams\"]
+
+            // Optional con flatMap
+            List<Optional<String>> opts = List.of(
+                Optional.of(\"a\"),
+                Optional.empty(),
+                Optional.of(\"c\")
+            );
+            List<String> valores = opts.stream()
+                .flatMap(Optional::stream)  // Java 9+
+                .toList();
+            // [\"a\", \"c\"]
+            """,
+            q("¿Cuándo usar flatMap?",
+                "Cuando cada elemento de tu stream produce multiples elementos (como split(), findAll(), getHijos()). map() crearia Stream<Collection<T>>, flatMap() lo aplana a Stream<T>. Ejemplo: lista de Departamentos -> lista de Empleados de cada departamento.")
+        );
+        sc(streams, "reduce()", "streams-reduce", 7,
+            "reduce() combina elementos a un solo valor.",
+            """
+            List<Integer> nums = List.of(1, 2, 3, 4, 5);
+
+            // reduce con identidad ( valor inicial)
+            int suma = nums.stream()
+                .reduce(0, Integer::sum);  // 15
+            // identity es el valor inicial: 0 + 1 + 2 + 3 + 4 + 5
+
+            // reduce sin identidad (devuelve Optional)
+            Optional<Integer> max = nums.stream()
+                .reduce(Integer::max);  // Optional.of(5)
+            // Porque si stream vacío, no hay identidad
+
+            // reduce con funcion binaria
+            String concatenado = List.of(\"a\", \"b\", \"c\").stream()
+                .reduce(\"\", (a, b) -> a + b);  // \"abc\"
+
+            // ERROR comun: usar reduce con estado mutable
+            AtomicInteger sum = new AtomicInteger(0);
+            nums.stream().reduce(0, (a, b) -> {
+                sum.addAndGet(b);  // NO HACER ESTO
+                return a + b;
+            });
+
+            // CORRECTO: pure function
+            int result = nums.stream().reduce(0, Integer::sum);
+            """,
+            q("¿Por qué reduce necesita pure functions?",
+                "reduce() asume que la funcion es stateless y associativa. a op b op c = (a op b) op c = a op (b op c). Si violas esto (ej: modificando variable externa), el resultado es no deterministico. Para casos con estado mutable, usa collect().")
+        );
 
         // ===== CONCURRENCIA =====
         Concept multithreading = concept("Multithreading", "multithreading", Block.JAVA_CORE, 12,
