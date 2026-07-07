@@ -18,7 +18,7 @@
 - [ ] **Record** - ampliar explicación (cláusula canónica, métodos personalizados, immutable)
 - [ ] **BigDecimal** - precisión decimal, compareTo vs equals, rounding modes
 - [ ] **Local-Variable Type Inference (var)** - Java 10+, limitaciones, buenas prácticas
-- [ ] **Functional Interfaces** - Supplier, Consumer, Function, Predicate, sus métodos
+- [x] **Functional Interfaces** - Supplier, Consumer, Function, Predicate, sus métodos (IMPLEMENTADO)
 
 ### 🟡 AMPLIAR (explicaciones superficiales)
 - [ ] **Clone** - shallow copy vs deep copy, CopyConstructor, CloneNotSupportedException
