@@ -3990,6 +3990,129 @@ public class DataLoader implements CommandLineRunner {
                 "NO. Para CPU-bound, usa platform threads (o parallel streams). Para IO-bound con alta concurrencia, usa VTs. Para few long-running tasks, platform threads están bien. VTs son para muchos short-lived tasks que bloquean frecuentemente.")
         );
 
+        // ===== EQUALS Y HASHCODE =====
+        Concept equalsHashCode = concept("equals() y hashCode()", "equals-hashcode", Block.JAVA_CORE, 31,
+            "equals() define igualdad lógica entre objetos. == compara referencias (dirección). hashCode() devuelve int para usar en tablas hash (HashMap, HashSet, HashTable). El CONTRATO: objetos iguales DEBEN tener igual hashCode. Si overrideas equals, DEBES override hashCode. El contrato permite que objetos se encuentren en collections hash-based.",
+            null,
+            cq("¿Por qué es importante el contrato equals-hashCode?",
+                "HashMap/HashSet usan hashCode() para colocar objetos en buckets. Luego usan equals() para encontrar el objeto exacto. Si dos objetos son equals() pero tienen hashCode() diferente, terminan en buckets diferentes y HashMap NO los encontrará. Esto rompe el contrato y causa bugs sutiles: 'contains' devuelve false cuando debería true."),
+            cq("¿Qué es el contrato entre equals y hashCode?",
+                "1) Reflexivo: a.equals(a) es true. 2) Simétrico: a.equals(b) == b.equals(a). 3) Transitivo: a.equals(b) y b.equals(c) → a.equals(c). 4) Consistente: multiple calls return same result. 5) a.equals(null) es false. 6) Si a.equals(b) es true → a.hashCode() == b.hashCode(). Esta última es la más violada."),
+            cq("¿equals() vs ==?",
+                "== para primitivos compara el valor. Para referencias, compara la dirección de memoria (identidad). equals() en Object es == por defecto. Override equals() para definir igualdad LÓGICA: dos objetos diferentes en memoria pero 'iguales' según tu criterio (mismo DNI, mismo email).")
+        );
+        sc(equalsHashCode, "Implementación correcta", "equals-hashcode-implementacion", 1,
+            "Cómo implementar equals() y hashCode() correctamente usando IDE o libraries.",
+            """
+            import java.util.Objects;
+
+            public class Persona {
+                private String dni;
+                private String email;
+                private int edad;
+
+                @Override
+                public boolean equals(Object o) {
+                    if (this == o) return true;  // misma referencia
+                    if (o == null || getClass() != o.getClass()) return false;  // null o different class
+                    Persona persona = (Persona) o;
+                    return edad == persona.edad &&                   // primitive field
+                           Objects.equals(dni, persona.dni) &&     // Objects.equals handles null
+                           Objects.equals(email, persona.email);
+                }
+
+                @Override
+                public int hashCode() {
+                    return Objects.hash(dni, email, edad);  // combina todos los campos
+                }
+
+                // IMPORTANTE: si usas un campo para equals, úsalo también en hashCode
+                // SIEMPRE incluir los mismos campos en ambos
+            }
+
+            // JAVA 15+: puedes usar records para generar automáticamente
+            public record PersonaRecord(String dni, String email, int edad) {}
+            // equals, hashCode, toString, constructor se generan automáticamente
+            """,
+            q("¿Por qué usar Objects.equals() y Objects.hash()?",
+                "Objects.equals(a, b) maneja null safely: Objects.equals(null, null) es true, Objects.equals(null, x) es false. Sin esto, tendrías que hacer a == null ? b == null : a.equals(b). Objects.hash() crea hashCode combinando los campos. Asegura consistencia y reduce boilerplate."),
+            q("¿hashCode() debe usar los mismos campos que equals()?",
+                "SÍ. Si overrideas equals para comparar dni y email, hashCode DEBE usar solo dni y email. Si incluyes un campo extra (ej: edad) en hashCode pero no en equals, puedes tener: dos Personas con mismo dni/email pero diferente edad. Son equals() pero hashCode diferente → Bug en HashMap.")
+        );
+        sc(equalsHashCode, "hashCode en Collections", "equals-hashcode-collections", 2,
+            "Cómo HashMap, HashSet y HashTable usan equals y hashCode.",
+            """
+            Map<String, Integer> mapa = new HashMap<>();
+            mapa.put(new String(\"clave\"), 1);  // new String() ≠ \"clave\" literal
+
+            // HashMap.put(key, value):
+            // 1. key.hashCode() → determina bucket
+            // 2. Busca en bucket con equals() para encontrar el key exacto
+            // 3. Si encuentra, reemplaza value; si no, añade entry
+
+            // PROBLEMA: hashCode inconsistente
+            class MalaClave {
+                private String datos;
+                public MalaClave(String d) { this.datos = d; }
+
+                @Override
+                public boolean equals(Object o) {
+                    return datos.equals(o);
+                }
+                // FALTA hashCode override!
+                // hashCode por defecto usa identity → diferente cada new MalaClave(\"a\")
+            }
+
+            mapa.put(new MalaClave(\"a\"), 1);
+            mapa.get(new MalaClave(\"a\"));  // NULL! porque hashCode diferente
+
+            // BUENA CLAVE: String, Integer, Long tienen equals/hashCode bien implementados
+            // O si creas clave, implements equals Y hashCode correctamente
+            """,
+            q("¿Por qué String es buena clave de HashMap?",
+                "String tiene equals() y hashCode() bien implementados: dos Strings con igual contenido son equals() y tienen igual hashCode(), sin importar diferentes objetos. \"hola\" creado como literal y como new String(\"hola\") son equals() y mismo hashCode(). String es inmutable, así que hashCode no cambia después de插入."),
+            q("¿Qué pasa si el hashCode de un objeto cambia después deinsertar en HashMap?",
+                "BUG. Si insertas un objeto en HashMap y luego cambias un campo que afecta hashCode(), el objeto queda 'perdido': HashMap lo buscó en bucket equivocado. Por eso las claves en HashMap DEBEN ser inmutables (o al menos sus campos que afectan equals/hashCode no deben cambiar). String es ideal por ser inmutable.")
+        );
+        sc(equalsHashCode, "Auto-generated y IDE", "equals-hashcode-auto", 3,
+            "Usa IDE o libraries para generar equals/hashCode correctamente. No los escribas a mano.",
+            """
+            // INTELLIJ: Alt+Insert → equals() and hashCode()
+            // genera:
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                Persona persona = (Persona) o;
+                return edad == persona.edad &&
+                       Objects.equals(dni, persona.dni) &&
+                       Objects.equals(email, persona.email);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(dni, email, edad);
+            }
+
+            // LOMBOK: @EqualsAndHashCode annotation
+            @EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
+            public class Persona extends BaseEntity {
+                @EqualsAndHashCode.Include
+                private String dni;
+
+                @EqualsAndHashCode.Exclude
+                private String temporal;  // no participa en equals/hashCode
+            }
+
+            // JAVA 16+: usa records (equals/hashCode generation automática)
+            public record Persona(String dni, String email, int edad) {}
+            """,
+            q("¿Lombok @EqualsAndHashCode vs records?",
+                "Records: genera equals/hashCode para todos los campos automáticamente, inmutables, y más concisos. @EqualsAndHashCode: más control (puedes exclude campos, include solo algunos, callSuper), puede mutar. Para nuevos DTOs/data classes, preference records. Para entities que necesitan mutación, usa @EqualsAndHashCode o genera manual."),
+            q("¿Por qué getClass() vs instanceof en equals()?",
+                "getClass() enforce strict typing: solo iguales si son exactamente la misma clase. instanceof permite subclases: 'new Persona(dni)' y 'new PersonaExtended(dni)' serían equals() si solo comparas dni. Si tu clase es final o no quieres，允许 subclass equality, usa getClass(). Si quieres allow subclasses, usa instanceof.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
