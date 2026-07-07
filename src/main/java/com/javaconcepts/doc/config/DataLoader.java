@@ -4113,6 +4113,116 @@ public class DataLoader implements CommandLineRunner {
                 "getClass() enforce strict typing: solo iguales si son exactamente la misma clase. instanceof permite subclases: 'new Persona(dni)' y 'new PersonaExtended(dni)' serían equals() si solo comparas dni. Si tu clase es final o no quieres，允许 subclass equality, usa getClass(). Si quieres allow subclasses, usa instanceof.")
         );
 
+        // ===== DATETIME API =====
+        Concept dateTimeApi = concept("DateTime API (Java 8+)", "datetime-api", Block.JAVA_CORE, 32,
+            "Java 8+ introduce java.time API como reemplazo de Date, Calendar y SimpleDateFormat (legacy, thread-unsafe, badly designed). java.time es inmutable, thread-safe, y tiene API clara. Tipos principales: LocalDate (fecha sin hora), LocalTime (hora sin fecha), LocalDateTime (ambos), ZonedDateTime (con timezone), Instant (momento UTC).",
+            null,
+            cq("¿Por qué reemplazar Date y Calendar?",
+                "Date es mutable (puedes hacer date.setTime(0) y cambia). Calendar es abstract con implementaciones inconsistentes. Neither son thread-safe. SimpleDateFormat es thread-unsafe (usa instance fields). java.time (JSR-310) es inmutable, thread-safe, y tiene API fluida con method chaining."),
+            cq("¿Cuál es la diferencia entre LocalDateTime, ZonedDateTime e Instant?",
+                "LocalDateTime: fecha+hora sin timezone (ej: 2024-06-15T14:30). ZonedDateTime: fecha+hora CON timezone (ej: 2024-06-15T14:30-05:00[America/New_York]). Instant: punto en timeline UTC (nanosegundos desde epoch). Instant es el más básico; lo demás son 'vistas' con timezone o zona."),
+            cq("¿Qué es un ZoneId y por qué importa?",
+                "ZoneId identifica una zona horaria (America/New_York, Europe/Madrid). ZonedDateTime usa esto para convertir entre timezones. Cuando guardas timestamps en BD, decide: Instant (recomendado) o ZonedDateTime con timezone explícito. Nunca guardes LocalDateTime sin timezone para timestamps.")
+        );
+        sc(dateTimeApi, "Tipos principales", "datetime-tipos", 1,
+            "LocalDate, LocalTime, LocalDateTime, Instant.",
+            """
+            import java.time.*;
+
+            // LocalDate: solo fecha (YYYY-MM-DD)
+            LocalDate hoy = LocalDate.now();                    // hoy
+            LocalDate navidad = LocalDate.of(2024, 12, 25);
+            LocalDate masTarde = navidad.plusDays(7);           //相加
+            LocalDate anterior = navidad.minusMonths(1);
+            int diaMes = navidad.getDayOfMonth();               // 25
+            DayOfWeek dow = navidad.getDayOfWeek();             // WEDNESDAY
+
+            // LocalTime: solo hora (HH-MM-SS)
+            LocalTime ahora = LocalTime.now();
+            LocalTime medianoche = LocalTime.of(0, 0);
+            LocalTime hora = LocalTime.of(14, 30, 15);
+
+            // LocalDateTime: fecha y hora SIN timezone
+            LocalDateTime ahoraLdt = LocalDateTime.now();
+            LocalDateTime ldt = LocalDateTime.of(2024, 6, 15, 14, 30);
+
+            // Instant: punto UTC en el timeline
+            Instant ahoraUtc = Instant.now();
+            Instant epoch = Instant.EPOCH;                       // 1970-01-01T00:00:00Z
+            long epochMillis = ahoraUtc.toEpochMilli();
+
+            // Conversion
+            Instant fromLd = ldt.toInstant(ZoneOffset.UTC);
+            ZonedDateTime zdt = ldt.atZone(ZoneId.of(\"Europe/Madrid\"));
+            """,
+            q("¿Cómo formatear LocalDateTime a String?",
+                "Usa DateTimeFormatter. DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss\").format(ldt). O usa predefined: DateTimeFormatter.ISO_LOCAL_DATE_TIME. Para localizada: DateTimeFormatter.ofPattern(\"dd/MM/yyyy HH:mm\", new Locale(\"es\", \"ES\")). O usa ZonedDateTime con ZonedDateTime.format(formatter).")
+        );
+        sc(dateTimeApi, "Duration, Period, TemporalAmount", "datetime-duration", 2,
+            "Duration para tiempo machine-readable, Period para fechas humanas.",
+            """
+            // Duration: tiempo en segundos/nanos (para Instant, LocalTime)
+            Duration duracion = Duration.ofHours(2);
+            Duration entreInstants = Duration.between(instant1, instant2);
+            Duration cincoMin = Duration.ofMinutes(5);
+
+            duracion.toMinutes();    // 300
+            duracion.toHours();      // 5
+            duracion.toMillis();     // 300000
+
+            // Period: fechas en días/meses/años (para LocalDate)
+            Period periodo = Period.ofDays(7);
+            Period entreFechas = Period.between(fecha1, fecha2);
+            Period unAnoYMes = Period.of(1, 1, 0);
+
+            periodo.getDays();       // 7
+            periodo.toTotalMonths();  // 0 (sin meses)
+
+            // ATENCIÓN: Duration vs Period con LocalDateTime
+            LocalDateTime ldt1 = LocalDateTime.of(2024, 1, 1, 0, 0);
+            LocalDateTime ldt2 = LocalDateTime.of(2024, 1, 2, 0, 0);
+            Duration.between(ldt1, ldt2);  // Duration de 24 horas
+            // Period.between(ldt1, ldt2) NO compila en LocalDateTime!
+
+            // TemporalAmount: interface que Duration y Period implementan
+            TemporalAmount ta = Duration.ofHours(3);  // puedes treat como Duration
+            """,
+            q("¿Cuándo usar Duration vs Period?",
+                "Duration para tiempo machine-readable: medir elapsed time, timeouts, sleep. Period para fechas humanas: '2 semanas', '3 meses', '1 año'. Duration tiene toMillis(), toSeconds(). Period tiene getMonths(), getDays(). Duration funciona con Instant y LocalTime; Period con LocalDate."),
+            q("¿Qué es TemporalAmount?",
+                "Interfaz que Duration y Period implementan. Permite pasar 'cantidad de tiempo' genéricamente: void procesar(TemporalAmount cantidad). Ambos son TemporalAmount. Útil para APIs que aceptan diferentes tipos de duración.")
+        );
+        sc(dateTimeApi, "ZonedDateTime y timezones", "datetime-timezones", 3,
+            "Trabajar con diferentes zonas horarias.",
+            """
+            // ZonedDateTime: LocalDateTime + ZoneId
+            ZonedDateTime ahoraMadrid = ZonedDateTime.now(ZoneId.of(\"Europe/Madrid\"));
+            ZonedDateTime ahoraNYC = ZonedDateTime.now(ZoneId.of(\"America/New_York\"));
+
+            // Convertir entre zonas
+            ZonedDateTime madridToNYC = ahoraMadrid.withZoneSameInstant(ZoneId.of(\"America/New_York\"));
+            // withZoneSameInstant: mantiene el mismo punto en el tiempo
+            // withZoneSameLocal: mantiene la misma hora local (cambia el instante)
+
+            // OffsetDateTime: LocalDateTime + ZoneOffset (diferencia de UTC)
+            OffsetDateTime odt = OffsetDateTime.now(ZoneOffset.ofHours(-5));
+
+            // Best practice para timestamps en BD
+            Instant timestamp = Instant.now();           // Guardar como Instant/UTC
+            // En BD: timestamp without timezone (guarda UTC)
+            // En Java: Instant o ZonedDateTime con timezone del usuario
+
+            // Al mostrar a usuario:
+            Instant guardado = resultSet.getObject(\"timestamp\", Instant.class);
+            ZonedDateTime paraUsuario = guardado.atZone(userZoneId);
+            String formateado = paraUsuario.format(DateTimeFormatter.ofPattern(\"dd/MM/yyyy HH:mm z\"));
+            """,
+            q("¿Qué ZoneId usar para guardar timestamps?",
+                "Instant (UTC) es lo más recomendado para guardar. En BD: TIMESTAMP WITH TIME ZONE o guardarlo como UTC. En Java: Instant es simple y sin timezone. Si necesitas guardar la timezone original del usuario (para mostrarla después), guarda ZoneId. Instant es comparable, ordenable, y sin ambigüedad DST."),
+            q("¿Qué es el problema de LocalDateTime para timestamps?",
+                "LocalDateTime NO tiene timezone. 2024-03-10T02:30 puede existir o no dependiendo de DST (a las 2am se avanza a 3am en US). Esto causa problemas: un instante puede no tener representación local. Instant y ZonedDateTime handle DST correctamente. Nunca uses LocalDateTime para timestamps.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
