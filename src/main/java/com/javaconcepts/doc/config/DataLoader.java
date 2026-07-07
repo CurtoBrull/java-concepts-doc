@@ -4587,6 +4587,133 @@ public class DataLoader implements CommandLineRunner {
                 "Parallel streams: para operaciones CPU-bound sobre colecciones, más simple. CompletableFuture: para operaciones I/O-bound, chainingasync, handling errores complejo, composición de múltiples async tasks. CompletableFuture es más flexible; parallel streams es más simple para casos straightforward.")
         );
 
+        // ===== ANOTACIONES =====
+        Concept anotaciones = concept("Anotaciones", "anotaciones", Block.JAVA_CORE, 35,
+            "Las anotaciones son metadatos que se añaden al código fuente (clases, métodos, campos). No afectan la lógica del programa directamente pero pueden ser procesadas por compilers (lint), herramientas de build (Lombok), o runtime (reflection). Java tiene anotaciones predefinidas y permite crear anotaciones personalizadas.",
+            null,
+            cq("¿Qué es una anotación?",
+                "Una anotación es un marker/metadata que se adjunta a elementos del código. No cambia el comportamiento del código por sí misma, pero herramientas o el compilador pueden procesarlas para generar código, hacer validaciones, o influir en el comportamiento en runtime via reflection."),
+            cq("¿Qué es @Override?",
+                "Anotación que marca un método como override de un método de la clase padre. El compilador verifica que el método realmente existe en el padre. Si no, error de compilación. Previene bugs como typo en nombre de método o firma incorrecta."),
+            cq("¿Qué es @FunctionalInterface?",
+                "Marca una interfaz como funcional (un solo método abstracto). El compilador verifica que exactamente tiene un método abstracto. Si tienes más o menos, error de compilación. Documenta la intención y habilita uso en lambda expressions.")
+        );
+        sc(anotaciones, "@Override y @Deprecated", "anotaciones-override-deprecated", 1,
+            "@Override verifica override correcto. @Deprecated marca código obsoleto.",
+            """
+            @Override
+            public String toString() {
+                return super.toString() + \" extra\";
+            }
+            // Error de compilación si el método no existe en el padre
+
+            @Deprecated
+            public void metodoAntiguo() {
+                // El compilador warn sobre uso de este método
+            }
+
+            @Deprecated(since = \"1.5\", forRemoval = true)
+            public void metodoQueSeraEliminado() {
+                // Indica que será removido en futuras versiones
+            }
+
+            // Javadoc con @deprecated
+            /**
+             * @deprecated Use {@link #nuevoMetodo()} instead.
+             */
+            @Deprecated
+            public void metodoAntiguo() {}
+            """,
+            q("¿Por qué @Override previene errores?",
+                "Sin @Override, si escribes mal el nombre del método (ej: toStrng() en lugar de toString()), el compilador lo ve como método nuevo, no un override. Con @Override, el compilador sabe que DEBE existir en el padre y te avisa si no."),
+            q("¿@Deprecated con forRemoval=true?",
+                "Indica que el método será removido en una futura versiónmajor. El compilador produce warnings más severos. Útil para API migration. Los consumidores saben que deben migrar antes de actualizar.")
+        );
+        sc(anotaciones, "@SuppressWarnings", "anotaciones-suppresswarnings", 2,
+            "Indica al compilador que suprima warnings específicos.",
+            """
+            @SuppressWarnings(\"unchecked\")
+            public void rawTypeExample() {
+                List list = new ArrayList();  // raw type, normalmente warning
+                list.add(\"string\");  // unchecked warning suprimido
+            }
+
+            @SuppressWarnings(\"deprecation\")
+            public void usarMetodoObsoleto() {
+                // Usar deprecated method sin warnings
+            }
+
+            @SuppressWarnings({\"unchecked\", \"deprecation\"})
+            public void multiple() {}
+
+            // Anotaciones de terceros (Lombok)
+            @SuppressWarnings(\" Lombok-generated-code\")
+            public class MiClase {}
+            """,
+            q("¿Por qué no abusar de @SuppressWarnings?",
+                "Suprime warnings que indican problemas potenciales. Si suprimes 'unchecked' y luego metes un tipo incorrecto en una raw List, puedes tener ClassCastException en runtime. Solo suprimir cuando sabes que es seguro y el warning es más ruido que utilidad.")
+        );
+        sc(anotaciones, "@SafeVarargs", "anotaciones-safevarargs", 3,
+            "Para métodos que usan varargs con tipos genéricos, suprime el warning de heap pollution.",
+            """
+            @SafeVarargs
+            public final void safeMethod(String... args) {
+                for (String arg : args) {
+                    System.out.println(arg);
+                }
+            }
+
+            // Sin @SafeVarargs: warning: possible heap pollution
+            // Con @SafeVarargs: suppress warning, pero solo si el método
+            // realmente no hace nada peligroso con el varargs
+
+            // REQUISITOS para usar @SafeVarargs:
+            // 1. Método o constructor es final o static (no instance method)
+            // 2. El varargs no es modificado (no se añade/quitar elementos)
+
+            // Ejemplo peligroso que NO debería tener @SafeVarargs:
+            @SafeVarargs  // ESTO ES INCORRECTO
+            public void dangerous(List<String>... lists) {
+                lists[0].add(\"foreign object\");  // heap pollution!
+            }
+            """,
+            q("¿Qué es heap pollution?",
+                "Cuando una variable de tipo genérico apunta a un objeto de otro tipo. Ej: List<String> apunta a List<Integer> en runtime. Puede causar ClassCastException inexplicables. @SafeVarargs indica que el código es seguro contra esto.")
+        );
+        sc(anotaciones, "Anotaciones personalizadas", "anotaciones-personalizadas", 4,
+            "Crear tus propias anotaciones con @interface.",
+            """
+            // Definir anotación
+            @Retention(RetentionPolicy.RUNTIME)  // visible en runtime
+            @Target(ElementType.METHOD)          // solo para métodos
+            public @interface MiAnotacion {
+                String valor() default \"default\";  // atributo
+                int numero() default 0;
+            }
+
+            // Usar anotación
+            public class MiClase {
+                @MiAnotacion(valor = \"test\", numero = 42)
+                public void miMetodo() {}
+            }
+
+            // Procesar con reflection
+            Method metodo = MiClase.class.getMethod(\"miMetodo\");
+            MiAnotacion anota = metodo.getAnnotation(MiAnotacion.class);
+            if (anota != null) {
+                System.out.println(anota.valor());  // \"test\"
+                System.out.println(anota.numero());  // 42
+            }
+
+            // RetentionPolicy: SOURCE (compilador), CLASS (bytecode), RUNTIME (reflection)
+            // Target: METHOD, FIELD, TYPE, PARAMETER, CONSTRUCTOR, etc.
+            """,
+            q("¿Qué es @Retention?",
+                "Define cuándo la anotación es visible. SOURCE: solo para compiler (ej: @Override). CLASS: en bytecode pero no en runtime (default). RUNTIME: visible via reflection (necesario para frameworks como Spring, JUnit)."),
+            q("¿Qué es @Target?",
+                "Especifica qué elementos pueden tener la anotación. ElementType.METHOD, FIELD, TYPE (clase), PARAMETER, CONSTRUCTOR, ANNOTATION_TYPE, etc. Puedes combinar múltiples: @Target({ElementType.METHOD, ElementType.FIELD}).")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
