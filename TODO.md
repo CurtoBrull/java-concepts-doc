@@ -15,7 +15,7 @@
 - [x] **Virtual Threads** - Project Loom, lightweight threads, blocking, pinning, structured concurrency (IMPLEMENTADO)
 - [x] **Sealed Classes (Java 17)** - restringir herencia, permits, useful para switch expressions (IMPLEMENTADO)
 - [x] **Pattern Matching for switch (Java 21)** - expresiones de switch mejoradas (IMPLEMENTADO)
-- [ ] **Record** - ampliar explicación (cláusula canónica, métodos personalizados, immutable)
+- [x] **Record** - ampliar explicación (cláusula canónica, métodos personalizados, immutable) (IMPLEMENTADO)
 - [x] **BigDecimal** - precisión decimal, compareTo vs equals, rounding modes (IMPLEMENTADO)
 - [x] **Local-Variable Type Inference (var)** - Java 10+, limitaciones, buenas prácticas (IMPLEMENTADO)
 - [x] **Functional Interfaces** - Supplier, Consumer, Function, Predicate, sus métodos (IMPLEMENTADO)
@@ -23,7 +23,7 @@
 ### 🟡 AMPLIAR (explicaciones superficiales)
 - [x] **Clone** - shallow copy vs deep copy, CopyConstructor, CloneNotSupportedException (IMPLEMENTADO)
 - [x] **Anotaciones** - @Override, @Deprecated, @FunctionalInterface, @SuppressWarnings, @SafeVarargs (IMPLEMENTADO)
-- [ ] **Streams** - collect, partitionBy, groupingBy, flatMap, reduce en profundidad
+- [x] **Streams** - collect, partitionBy, groupingBy, flatMap, reduce en profundidad (IMPLEMENTADO)
 - [x] **Parallel Streams** - ForkJoinPool, orden vs paralelismo, cuando NO usarlos (IMPLEMENTADO)
 - [x] **Reflection** - Class.forName(), getDeclaredMethods(), uso en frameworks (Spring, JUnit) (IMPLEMENTADO)
 - [x] **Garbage Collectors** - G1 vs ZGC vs Shenandoah vs Serial, cómo elegir, flags (IMPLEMENTADO)
@@ -32,9 +32,27 @@
 
 ### 🟢 MEJORAR CONTENIDO EXISTENTE
 - [ ] **equals y hashCode** (concepto "Objeto") - ampliar con código de implementación correcta
-- [ ] **Enums y Records** - crear concepto separado para Record con más profundidad
-- [ ] **Clases Internas** - mencionar también lambda scope y effectively final
 - [ ] **interfaces** - ampliar con @FunctionalInterface y ejemplos de lambda
+
+### Conceptos Java Core YA IMPLEMENTADOS
+- [x] **Paso por Valor y Referencia**
+- [x] **Interfaces Funcionales**
+- [x] **Optional<T>**
+- [x] **Sealed Classes**
+- [x] **Records** (nuevo concepto)
+- [x] **BigDecimal**
+- [x] **var - Type Inference**
+- [x] **Clone - Shallow/Deep Copy**
+- [x] **Pattern Matching for switch**
+- [x] **Virtual Threads**
+- [x] **equals() y hashCode()**
+- [x] **DateTime API**
+- [x] **Garbage Collectors** (ampliado)
+- [x] **Parallel Streams**
+- [x] **Anotaciones**
+- [x] **Reflection**
+- [x] **JVM Memory Model**
+- [x] **Clases Internas** (expandido con lambda scope)
 
 ---
 
