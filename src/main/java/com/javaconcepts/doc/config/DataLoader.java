@@ -2904,6 +2904,79 @@ public class DataLoader implements CommandLineRunner {
             q("¿Serializable sigue siendo recomendado?",
                 "Para persistencia o comunicación entre servicios modernos se prefieren JSON (Jackson) o Protocol Buffers. Serializable sigue útil para cachés locales, sesiones o RMI."));
 
+        // ===== PASO POR VALOR Y REFERENCIA =====
+        Concept pasoValorRef = concept("Paso por Valor y Referencia", "paso-valor-referencia", Block.JAVA_CORE, 21,
+            "Java siempre pasa por VALOR, nunca por referencia. Para tipos primitivos, se copia el valor. Para objetos, se copia la referencia (el puntero), no el objeto en sí. Esto causa confusión porque parece referencia, pero es una copia de la referencia.",
+            null,
+            cq("¿Java es pass-by-value o pass-by-reference?",
+                "Java es 100% pass-by-value. Para primitivos se copia el valor. Para objetos se copia la referencia (dirección de memoria). Nunca se pasa el objeto directamente. Por eso cambiar la referencia interna de un método no afecta al llamador."),
+            cq("¿Por qué parece que Java pasa objetos por referencia?",
+                "Porque modificas el objeto al que apunta la referencia. Pero si dentro del método haces obj = new Object(), solo cambias la copia local de la referencia. El llamador sigue apuntando al objeto original. La confusión viene de modificar estado interno del objeto."),
+            cq("¿Ejemplo clásico de confusión?",
+                "swap(int a, int b) { int temp = a; a = b; b = temp; } - No funciona. Pero si haces obj.campo = valor, SÍ funciona porque modificas el objeto, no la referencia.");
+        sc(pasoValorRef, "Primitivos vs Referencias", "primitivos-vs-referencias", 1,
+            "Diferencia fundamental entre cómo se tratan tipos primitivos y objetos.",
+            """
+            // PRIMITIVOS: se copia el valor
+            void duplicar(int n) {
+                n = n * 2;  // solo cambia LOCAL
+            }
+            int x = 5;
+            duplicar(x);
+            System.out.println(x);  // sigue siendo 5
+
+            // OBJETOS: se copia la referencia
+            void modificar(StringBuilder sb) {
+                sb.append(" mundo");  // SÍ modifica el objeto original
+            }
+            StringBuilder sb = new StringBuilder("hola");
+            modificar(sb);
+            System.out.println(sb);  // "hola mundo"
+
+            // PERO esto NO funciona:
+            void cambiar(StringBuilder sb) {
+                sb = new StringBuilder("nuevo");  // solo cambia la copia local
+            }
+            StringBuilder original = new StringBuilder("hola");
+            cambiar(original);
+            System.out.println(original);  // sigue siendo "hola"
+            """,
+            q("¿Por qué el ejemplo del StringBuilder modifica el objeto?",
+                "Porque sb apunta al mismo objeto en memoria que original. Cuando llamas sb.append(), operas sobre el objeto al que apunta sb. Como sb y original apuntan al mismo objeto, los cambios son visibles desde original."),
+            q("¿Qué significa 'copiar la referencia'?",
+                "La referencia es la dirección de memoria (pointer). Cuando pasas un objeto, se copia esa dirección. Ahora tienes dos referencias apuntando al mismo objeto. Si una referencia cambia de objeto, la otra no se entera."),
+            q("¿Cómo simular swap real en Java?",
+                "No puedes directamente. Solo puedes: 1) Devolver los valores intercambiados, 2) Usar un wrapper, 3) Usar arrays de un elemento. Java no soporta true pass-by-reference como C++.")
+        );
+        sc(pasoValorRef, "Inmutabilidad y efectos", "inmutabilidad-efectos", 2,
+            "Con objetos mutables puedes 'ver' efectos laterales. Con inmutables (String, Integer), nunca hay confusión porque no puedes modificarlos.",
+            """
+            // String es inmutable: no hay efecto lateral
+            void procesar(String s) {
+                s = s + " mundo";  // crea NUEVO String, no modifica original
+            }
+            String texto = "hola";
+            procesar(texto);
+            System.out.println(texto);  // "hola" - sin cambios
+
+            // Wrapper array para simular pass-by-reference
+            void swap(String[] arr) {
+                String temp = arr[0];
+                arr[0] = arr[1];
+                arr[1] = temp;
+            }
+            String[] par = {"a", "b"};
+            swap(par);
+            System.out.println(par[0] + par[1]);  // "ba" - SÍ funciona
+            """,
+            q("¿Por qué String no se comporta como el StringBuilder?",
+                "String es inmutable: todos sus métodos que 'modifican' en realidad crean nuevos String. No hay forma de cambiar el contenido de un String existente. StringBuilder es mutable, sus métodos modifican el array interno."),
+            q("¿Integer es mutable o inmutable?",
+                "Inmutable. Cuando haces operaciones aritméticas, se crean nuevos Integer. No puedes hacer intWrapper.value++ y esperar que el original se modifique."),
+            q("¿Ventaja de la inmutabilidad?",
+                "Thread-safe por diseño, sin sincronización. Sin efectos laterales inesperados. Objetos inmutables son predecibles y seguros para caching y uso como claves de HashMap.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
