@@ -3875,6 +3875,121 @@ public class DataLoader implements CommandLineRunner {
                 "Sí. Sealed puede tener subclases sealed, final o non-sealed. Un sealed interface puede tener implementadores sealed, final o non-sealed. El compilador mantiene la jerarquía cerrada en todos los niveles. Útil para modeling de expresiones, estados, o cualquier jerarquía cerrada.")
         );
 
+        // ===== VIRTUAL THREADS =====
+        Concept virtualThreads = concept("Virtual Threads", "virtual-threads", Block.JAVA_CORE, 30,
+            "Virtual Threads (Project Loom, Java 21 standard) son lightweight threads implementados a nivel de JVM, no de SO. Miles o millones de virtual threads pueden ejecutarse en pocos carrier threads (OS threads). Ideal para IO-bound workloads (HTTP requests, DB queries). El código es igual que threads normales pero sin el overhead de memoria y context switching.",
+            null,
+            cq("¿Qué es un Virtual Thread vs Platform Thread?",
+                "Platform Thread (tradicional): mapea 1:1 con OS thread. 1MB+ de stack, context switching costoso. Virtual Thread: múltiples VTs comparten pocos OS threads (carrier threads). Stack gestado dinámicamente, ~1KB inicial. Puedes tener millones de VTs en una sola JVM."),
+            cq("¿Cuándo usar Virtual Threads?",
+                "IO-bound workloads: HTTP requests, DB queries, file IO, waiting on external services. Donde tienes many concurrent connections or operations that spend time waiting. NO para CPU-bound: un VT bloqueado bloquea su carrier thread. Para CPU-bound, sigue con platform threads y parallel streams."),
+            cq("¿Virtual Threads解决问题什么问题?",
+                "El problema del 'thread per request' en servers. Cada request HTTP crea un thread que espera IO. Con 10K requests concurrentes, necesitas 10K platform threads (~10GB RAM solo para threads). Virtual threads permiten 10K+ VTs en ~100MB. Spring, Tomcat, Helidon ya suportan VT.")
+        );
+        sc(virtualThreads, "Creación y uso", "virtual-threads-uso", 1,
+            "Formas de crear y usar Virtual Threads.",
+            """
+            // CREAR VIRTUAL THREADS
+            // 1. Thread.ofVirtual() - factory
+            Thread vt = Thread.ofVirtual().start(() -> System.out.println(\"En VT\"));
+
+            // 2. Thread.startVirtualThread() - atajo
+            Thread t = Thread.startVirtualThread(() -> System.out.println(\"En VT\"));
+
+            // 3. ExecutorService con VirtualThreads
+            try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                Future<String> f = executor.submit(() -> {
+                    // Este código corre en un Virtual Thread
+                    return fetchData();
+                });
+            }
+
+            // 4. CompletableFuture with VT
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                CompletableFuture.supplyAsync(() -> fetchData(), executor);
+            }
+
+            // El código es IDENTICO a platform threads
+            Thread vt = Thread.startVirtualThread(() -> {
+                // El mismo código que un Thread normal
+                blockingOperation();  // VT sabe que es blocking y 'pauses'
+            });
+            """,
+            q("¿newVirtualThreadPerTaskExecutor() vs newFixedThreadPool()?",
+                "newFixedThreadPool crea N platform threads, reutiliza para tareas. newVirtualThreadPerTaskExecutor crea UN virtual thread por cada tarea submit. Cuando la tarea bloquea en IO, el carrier thread ejecuta otro VT. El VT pool teórico es ilimitado; en la práctica depende del scheduler de la JVM."),
+            q("¿ThreadLocal con Virtual Threads?",
+                "Funciona igual, pero cuidado: si creas muchos VTs (millones), cada VT tiene su propio ThreadLocal. Eso es millones de valores. Usa ThreadLocal.withInitial() para lazy initialization. Considera scoped values (Java 21+) para datos que quieres compartir solo dentro de un ExecutionContext.")
+        );
+        sc(virtualThreads, "Blocking y Pinning", "virtual-threads-pinning", 2,
+            "Virtual threads se 'pausan' cuando bloquean en IO. Pero hay casos donde el carrier thread se bloquea (pinning).",
+            """
+            // VIRTUAL THREAD blocking es automático
+            void handleRequest() {
+                // Simula IO blocking (JDBC, HTTP, file)
+                Connection conn = db.getConnection();  // VT se pauega aquí
+                ResultSet rs = conn.createStatement().executeQuery(\"SELECT...\");
+                // VT resumes cuando IO completa
+            }
+
+            // PROBLEMA: synchronized blocks pinning
+            synchronized(lock) {
+                // Cuando bloquea aquí, VT hace pinning del carrier thread
+                // NO puede pausar y usar otro carrier
+                // Solución: ReentrantLock con tryLock() o mark como @Contended
+            }
+
+            // DETECT pinning con -Djdk.tracePinning=true
+            // Java 21+ evita pinning en muchos casos
+
+            // BUENA PRÁCTICA: evitar synchronized en código que usa VTs
+            // Usa ReentrantLock en su lugar:
+            private final ReentrantLock lock = new ReentrantLock();
+            lock.lock();
+            try {
+                // trabajo
+            } finally {
+                lock.unlock();
+            }
+            """,
+            q("¿Qué es pinning en Virtual Threads?",
+                "Pinning ocurre cuando un Virtual Thread está en un synchronized y bloquea. En lugar de pausar el VT, bloquea el carrier thread. Esto reduce el benefit de VTs. El flag -Djdk.tracePinning=stack muestra dónde ocurre. Solución: usar ReentrantLock en lugar de synchronized, o mark la clase con @Contended."),
+            q("¿Se puede usar Thread.yield() con Virtual Threads?",
+                "Thread.yield() es advisory y depende de la implementación. Con VTs, yield() sugiere al scheduler que puede pausar el VT y ejecutar otro. Pero para código correcto, no dependas de yield(). Si necesitas coordinar, usa Phaser, CyclicBarrier, o structured concurrency (Java 21+).")
+        );
+        sc(virtualThreads, "Structured Concurrency", "virtual-threads-structured", 3,
+            "Structured Concurrency (Java 21+) trata múltiples tareas concurrentes como una sola unidad. Simplifica error handling y cancellation.",
+            """
+            import jdk.incubator.concurrent.StructuredTaskScope;
+
+            // PROBLEMA: cada thread tiene vida propia, error handling difícil
+            Future<String> f1 = executor.submit(task1);
+            Future<Integer> f2 = executor.submit(task2);
+            // Si task1 throws, task2 sigue corriendo
+
+            // SOLUCIÓN: StructuredTaskScope (Java 21+)
+            try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+                Supplier<String> result1 = scope.fork(task1);
+                Supplier<Integer> result2 = scope.fork(task2);
+                scope.join();  // Espera todas las tareas
+
+                scope.throwIfFailed();  // Lanza si alguna falló
+
+                // Obtener resultados
+                String r1 = result1.get();
+                Integer r2 = result2.get();
+            }
+
+            // ShutdownOnFailure: cualquier excepción hace join() throw
+            // ShutdownOnSuccess: join() returns el primer resultado exitoso
+
+            // Cancellation: si el scope se cierra, todas las tareas se cancelan
+            """,
+            q("¿Por qué Structured Concurrency?",
+                "Sin ella, cada thread/task tiene vida independiente. Si falla uno, los otros pueden quedar huérfanos. Con SC, cuando sales del scope (excepción, método termina), TODAS las tareas fork-eadas se esperan o cancelan. El código concurrent parece secuencial. Más fácil de reason about."),
+            q("¿Virtual Threads reemplazan a platform threads?",
+                "NO. Para CPU-bound, usa platform threads (o parallel streams). Para IO-bound con alta concurrencia, usa VTs. Para few long-running tasks, platform threads están bien. VTs son para muchos short-lived tasks que bloquean frecuentemente.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
