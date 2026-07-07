@@ -9,14 +9,14 @@
 ## Contenido - Mejoras y Conceptos Faltantes para Entrevistas
 
 ### 🔴 FALTAN (preguntas frecuentes en entrevistas)
-- [ ] **String vs StringBuilder vs StringBuffer** - inmutabilidad, rendimiento, sincronización
+- [x] **String vs StringBuilder vs StringBuffer** - inmutabilidad, rendimiento, sincronización (IMPLEMENTADO)
 - [ ] **equals() y hashCode()** - contrato, importancia en HashMap/HashSet, cómo implementarlos correctamente
-- [ ] **Optional\<T\>** - evitar NullPointerException, orElse vs orElseGet, ifPresent
+- [x] **Optional\<T\>** - evitar NullPointerException, orElse vs orElseGet, ifPresent (IMPLEMENTADO)
 - [ ] **CompletableFuture** - async programming, chaining, handling errores
-- [ ] **Sealed Classes (Java 17)** - restringir herencia, permits, useful para switch expressions
+- [x] **Sealed Classes (Java 17)** - restringir herencia, permits, useful para switch expressions (IMPLEMENTADO)
 - [ ] **Pattern Matching for switch (Java 21)** - expresiones de switch mejoradas
 - [ ] **Record** - ampliar explicación (cláusula canónica, métodos personalizados, immutable)
-- [ ] **BigDecimal** - precisión decimal, compareTo vs equals, rounding modes
+- [x] **BigDecimal** - precisión decimal, compareTo vs equals, rounding modes (IMPLEMENTADO)
 - [ ] **Local-Variable Type Inference (var)** - Java 10+, limitaciones, buenas prácticas
 - [x] **Functional Interfaces** - Supplier, Consumer, Function, Predicate, sus métodos (IMPLEMENTADO)
 
