@@ -2906,16 +2906,17 @@ public class DataLoader implements CommandLineRunner {
 
         // ===== PASO POR VALOR Y REFERENCIA =====
         Concept pasoValorRef = concept("Paso por Valor y Referencia", "paso-valor-referencia", Block.JAVA_CORE, 21,
-            "Java siempre pasa por VALOR, nunca por referencia. Para tipos primitivos, se copia el valor. Para objetos, se copia la referencia (el puntero), no el objeto en sí. Esto causa confusión porque parece referencia, pero es una copia de la referencia.",
+            "Java siempre pasa por VALOR, nunca por referencia. Para tipos primitivos, se copia el valor. Para objetos, se copia la referencia (el puntero), no el objeto en si. Esto causa confusion porque parece referencia, pero es una copia de la referencia.",
             null,
-            cq("¿Java es pass-by-value o pass-by-reference?",
-                "Java es 100% pass-by-value. Para primitivos se copia el valor. Para objetos se copia la referencia (dirección de memoria). Nunca se pasa el objeto directamente. Por eso cambiar la referencia interna de un método no afecta al llamador."),
-            cq("¿Por qué parece que Java pasa objetos por referencia?",
-                "Porque modificas el objeto al que apunta la referencia. Pero si dentro del método haces obj = new Object(), solo cambias la copia local de la referencia. El llamador sigue apuntando al objeto original. La confusión viene de modificar estado interno del objeto."),
-            cq("¿Ejemplo clásico de confusión?",
-                "swap(int a, int b) { int temp = a; a = b; b = temp; } - No funciona. Pero si haces obj.campo = valor, SÍ funciona porque modificas el objeto, no la referencia.");
+            cq("Java es pass-by-value o pass-by-reference?",
+                "Java es 100% pass-by-value. Para primitivos se copia el valor. Para objetos se copia la referencia (direccion de memoria). Nunca se pasa el objeto directamente. Por eso cambiar la referencia interna de un metodo no afecta al llamador."),
+            cq("Por que parece que Java pasa objetos por referencia?",
+                "Porque modificas el objeto al que apunta la referencia. Pero si dentro del metodo haces obj = new Object(), solo cambias la copia local de la referencia. El llamador sigue apuntando al objeto original."),
+            cq("Ejemplo clasico de confusion?",
+                "Un metodo swap con temp no funciona porque solo intercambia copias locales. En cambio, obj.campo = valor SI funciona porque modificas el objeto, no la referencia.")
+        );
         sc(pasoValorRef, "Primitivos vs Referencias", "primitivos-vs-referencias", 1,
-            "Diferencia fundamental entre cómo se tratan tipos primitivos y objetos.",
+            "Diferencia fundamental entre como se tratan tipos primitivos y objetos.",
             """
             // PRIMITIVOS: se copia el valor
             void duplicar(int n) {
@@ -2927,7 +2928,7 @@ public class DataLoader implements CommandLineRunner {
 
             // OBJETOS: se copia la referencia
             void modificar(StringBuilder sb) {
-                sb.append(" mundo");  // SÍ modifica el objeto original
+                sb.append(" mundo");  // SI modifica el objeto original
             }
             StringBuilder sb = new StringBuilder("hola");
             modificar(sb);
@@ -2941,15 +2942,15 @@ public class DataLoader implements CommandLineRunner {
             cambiar(original);
             System.out.println(original);  // sigue siendo "hola"
             """,
-            q("¿Por qué el ejemplo del StringBuilder modifica el objeto?",
+            q("Por que el ejemplo del StringBuilder modifica el objeto?",
                 "Porque sb apunta al mismo objeto en memoria que original. Cuando llamas sb.append(), operas sobre el objeto al que apunta sb. Como sb y original apuntan al mismo objeto, los cambios son visibles desde original."),
-            q("¿Qué significa 'copiar la referencia'?",
-                "La referencia es la dirección de memoria (pointer). Cuando pasas un objeto, se copia esa dirección. Ahora tienes dos referencias apuntando al mismo objeto. Si una referencia cambia de objeto, la otra no se entera."),
-            q("¿Cómo simular swap real en Java?",
-                "No puedes directamente. Solo puedes: 1) Devolver los valores intercambiados, 2) Usar un wrapper, 3) Usar arrays de un elemento. Java no soporta true pass-by-reference como C++.")
+            q("Que significa copiar la referencia?",
+                "La referencia es la direccion de memoria (pointer). Cuando pasas un objeto, se copia esa direccion. Ahora tienes dos referencias apuntando al mismo objeto. Si una referencia cambia de objeto, la otra no se entera."),
+            q("Como simular swap real en Java?",
+                "No puedes directamente. Solo puedes: 1) Devolver los valores intercambiados, 2) Usar un wrapper, 3) Usar arrays de un elemento.")
         );
         sc(pasoValorRef, "Inmutabilidad y efectos", "inmutabilidad-efectos", 2,
-            "Con objetos mutables puedes 'ver' efectos laterales. Con inmutables (String, Integer), nunca hay confusión porque no puedes modificarlos.",
+            "Con objetos mutables puedes ver efectos laterales. Con inmutables (String, Integer), nunca hay confusion porque no puedes modificarlos.",
             """
             // String es inmutable: no hay efecto lateral
             void procesar(String s) {
@@ -2965,16 +2966,16 @@ public class DataLoader implements CommandLineRunner {
                 arr[0] = arr[1];
                 arr[1] = temp;
             }
-            String[] par = {"a", "b"};
+            String[] par = new String[]{"a", "b"};
             swap(par);
-            System.out.println(par[0] + par[1]);  // "ba" - SÍ funciona
+            System.out.println(par[0] + par[1]);  // "ba" - SI funciona
             """,
-            q("¿Por qué String no se comporta como el StringBuilder?",
-                "String es inmutable: todos sus métodos que 'modifican' en realidad crean nuevos String. No hay forma de cambiar el contenido de un String existente. StringBuilder es mutable, sus métodos modifican el array interno."),
-            q("¿Integer es mutable o inmutable?",
-                "Inmutable. Cuando haces operaciones aritméticas, se crean nuevos Integer. No puedes hacer intWrapper.value++ y esperar que el original se modifique."),
-            q("¿Ventaja de la inmutabilidad?",
-                "Thread-safe por diseño, sin sincronización. Sin efectos laterales inesperados. Objetos inmutables son predecibles y seguros para caching y uso como claves de HashMap.")
+            q("Por que String no se comporta como el StringBuilder?",
+                "String es inmutable: todos sus metodos que parecen modificar en realidad crean nuevos String. No hay forma de cambiar el contenido de un String existente. StringBuilder es mutable."),
+            q("Integer es mutable o inmutable?",
+                "Inmutable. Cuando haces operaciones aritmeticas, se crean nuevos Integer. No puedes hacer intWrapper.value++ y esperar que el original se modifique."),
+            q("Ventaja de la inmutabilidad?",
+                "Thread-safe por disenio, sin sincronizacion. Sin efectos laterales inesperados. Objetos inmutables son predecibles y seguros para caching y uso como claves de HashMap.")
         );
 
         // ===== INTERFACES FUNCIONALES =====
@@ -3210,7 +3211,7 @@ public class DataLoader implements CommandLineRunner {
         );
 
         // ===== OPTIONAL =====
-        Concept optionalConcept = concept("Optional\<T\>", "optional", Block.JAVA_CORE, 24,
+        Concept optionalConcept = concept("Optional<T>", "optional", Block.JAVA_CORE, 24,
             "Optional (Java 8+) es un contenedor que puede contener o no un valor no nulo. Diseñado para evitar NullPointerException y eliminar null checks dispersos por el código. Obliga a tratar el caso de ausencia explícitamente. Es inmutable y thread-safe.",
             null,
             cq("¿Qué problema resuelve Optional?",
