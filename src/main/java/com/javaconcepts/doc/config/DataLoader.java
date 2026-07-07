@@ -327,25 +327,32 @@ public class DataLoader implements CommandLineRunner {
                 private String dni;
                 private String nombre;
 
+                // JAVA 16+ pattern matching
                 @Override
                 public boolean equals(Object o) {
                     if (this == o) return true;
-                    if (!(o instanceof Persona p)); return false;
-                    return dni.equals(p.dni);  // igualdad por DNI
+                    if (!(o instanceof Persona p)) return false;
+                    return Objects.equals(dni, p.dni) && Objects.equals(nombre, p.nombre);
                 }
 
                 @Override
                 public int hashCode() {
-                    return dni.hashCode();  // consistente con equals
+                    return Objects.hash(dni, nombre);
                 }
+
+                // IMPORTANTE: incluir los MISMOS campos en equals y hashCode
             }
+
+            // EQUIVALENTE MODERNO: usar record
+            public record PersonaRecord(String dni, String nombre) {}
+            // records ya generan equals/hashCode/toString correctos
             """,
-            q("¿Por qué siempre que overridess equals debes overrider hashCode?",
+            q("¿Por qué siempre que override equals debes override hashCode?",
                 "El contrato de hashCode dice: objetos iguales deben producir el mismo hash. Si no lo haces, HashMap y HashSet fallarán: put(equals) puede guardar en cubetas equivocadas, y get(equals) no encontrará objetos. Es una source de bugs sutiles."),
-            q("¿equals vs == en objetos?",
+            q("equals vs == en objetos?",
                 "== compara referencias: true si apuntan al mismo objeto en memoria. equals compara contenido/lógica: true si el significado es igual. Para String, equals compara texto, == compara referencias (puede fallar con interning). Siempre usa equals para contenido, == para identidad."),
             q("¿Qué es el método equals por defecto de Object?",
-                "return this == obj; . Compara referencias. Si no overridess, objetos distintos siempre serán diferentes. Esto es correcto para entidades con identity única, pero incorrecto para value objects que deberían ser iguales si tienen los mismos valores.")
+                "return this == obj;. Compara referencias. Si no override, objetos distintos siempre serán diferentes. Esto es correcto para entidades con identity única, pero incorrecto para value objects que deberían ser iguales si tienen los mismos valores.")
         );
         sc(objeto, "toString", "tostring", 3,
             "toString devuelve una representación String del objeto. El default de Object devuelve nombreClase@hashcode (poco útil). Override para mostrar datos útiles en debugging y logs.",
