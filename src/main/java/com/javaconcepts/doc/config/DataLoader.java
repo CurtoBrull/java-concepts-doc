@@ -4848,6 +4848,166 @@ public class DataLoader implements CommandLineRunner {
                 "Field injection usa reflection para setAccessible(true), bypassing encapsulation. Constructor injection: 1) permite testing sin reflection, 2) field final puede ser immutable, 3) más claro qué dependencias tiene la clase, 4) puede validar null con @NonNull.")
         );
 
+        // ===== JVM MEMORY MODEL =====
+        Concept jvmMemoryModel = concept("JVM Memory Model", "jvm-memory-model", Block.JAVA_CORE, 37,
+            "El JVM Memory Model define cómo la memoria se organiza y gestiona durante la ejecución de programas Java. Incluye Heap, Stack, Metaspace, y otras regiones. Entender el memory model es esencial para debugging de memory leaks, tuning de rendimiento, y comprensión del comportamiento de objetos.",
+            null,
+            cq("¿Cuáles son las principales regiones de memoria de la JVM?",
+                "Heap (objetos y arrays), Stack (frames de métodos, variables locales), Metaspace (metadatos de clases, reemplazó PermGen), PC Registers (instrucción actual por thread), Native Stack (métodos nativos). Cada una tiene propósito y comportamiento diferente."),
+            cq("¿Qué es Heap vs Stack?",
+                "Heap: memoria compartida donde viven todos los objetos. Gestionada por Garbage Collector. Stack: memoria privada por thread, guarda frames de métodos, variables locales, referencias. Stack es LIFO, muy rápido, pero limitado en tamaño."),
+            cq("¿Qué es Metaspace vs Heap?",
+                "Metaspace almacena metadatos de clases (definitions, methods, constant pools). Heap almacena objetos de aplicación (POJOs, arrays). Metaspace grow automáticamente pero configurable. Antes de Java 8 era PermGen (fixed size, problemático).")
+        );
+        sc(jvmMemoryModel, "Heap Memory", "jvm-heap", 1,
+            "El Heap es donde se almacenan los objetos Java y es gestionado por el Garbage Collector.",
+            """
+            // Estructura del Heap
+            Young Generation (Young/Eden + Survivor S0 + S1)
+                - Eden: nuevos objetos se allocation
+                - Survivor spaces: objetos que sobreviven Minor GC
+
+            Old Generation (Tenured)
+                - Objetos longevos que sobrevivieron varios GC cycles
+
+            // Tamaño del heap
+            -Xms512m  // heap inicial
+            -Xmx4g    // heap máximo
+            -XX:NewRatio=2  // ratio Old/New (ej: 2 = Old será 2x Young)
+
+            // Monitoreo
+            jstat -heap <pid>
+            jmap -heap <pid>
+
+            // Ver uso actual
+            Runtime.getRuntime().totalMemory();    // total heap
+            Runtime.getRuntime().freeMemory();     // libre
+            Runtime.getRuntime().maxMemory();      // máximo configurado
+            """,
+            q("¿Qué es young generation vs old generation?",
+                "Young: nuevos objetos. La mayoría mueren joven (principle of generational garbage). Minor GC es rápido. Old: objetos que sobreviven múltiples Minor GC. Major/Full GC es más lento porque tiene que escanear más. ratio tipico: Old 2/3, Young 1/3.")
+        );
+        sc(jvmMemoryModel, "Stack Memory", "jvm-stack", 2,
+            "Stack es privado por thread y guarda frames de método y variables locales.",
+            """
+            // Cada thread tiene su propio stack
+            public class StackDemo {
+                public int metodoA() {
+                    int a = 1;
+                    return metodoB(a);
+                }
+
+                public int metodoB(int x) {
+                    String s = "hola";  // en stack
+                    return x + 10;
+                }
+            }
+
+            // Stack frames
+            - metodoA() frame: variables locales [a]
+            - metodoB() frame: parámetros [x], variables locales [s]
+
+            // Configuración
+            -Xss1m      // tamaño de stack por thread (default ~1MB)
+            -Xss256k   // menor = más threads puedo crear
+
+            // StackOverflowError
+            public void recursive() { recursive(); }  // sin caso base
+            // Cada llamada apila un frame hasta que stack se llena
+            """,
+            q("¿Qué causa StackOverflowError?",
+                "Recursión infinita sin caso base. Cada llamada metodo() crea un frame en el stack hasta que se agota el espacio. El stack es por thread, así que el error es por thread. Aumentar -Xss solo postponene el problema si la recursión es infinita.")
+        );
+        sc(jvmMemoryModel, "Metaspace", "jvm-metaspace", 3,
+            "Metaspace almacena metadatos de clases cargadas. Reemplazó PermGen en Java 8.",
+            """
+            // PermGen vs Metaspace
+            // Java 7: PermGen (fixed size, clases aquí)
+            // Java 8+: Metaspace (dynamic, fuera de heap)
+
+            // Configuración
+            -XX:MetaspaceSize=128m    // inicial
+            -XX:MaxMetaspaceSize=256m // máximo (unlimited por defecto)
+
+            // Monitoreo
+            jstat -class <pid>    // clases cargadas
+            jmap -clstats <pid>   // ClassLoader stats
+
+            // Qué almacena Metaspace
+            - Class definitions (nombre, modifiers, superclass)
+            - Method/Field metadata
+            - Constant pools (class, method references)
+            - JIT compiled code
+            - Arrays de annotations
+
+            // OOM si Metaspace se llena
+            // Causas: demasiadas clases dinámico (Proxies, CGlib, JSP recompiladas)
+            """,
+            q("¿Por qué Metaspace en lugar de PermGen?",
+                "PermGen tenía tamaño fijo, causaba OutOfMemoryError con muchas clases (appserver, JSPs). Metaspace usa native memory, grows automáticamente, y solo se limita con MaxMetaspaceSize. No más PermGen OOM errors.")
+        );
+        sc(jvmMemoryModel, "Outros segmentos", "jvm-otros", 4,
+            "Otras regiones de memoria menos conocidas.",
+            """
+            // PC Register (Program Counter)
+            // Cada thread tiene su PC register
+            // Apunta a la instrucción actual del método que está ejecutando
+            // En métodos nativos, PC es undefined
+
+            // Native Method Stack
+            // Similar al Java Stack pero para métodos nativos (JNI)
+            // -Xss también configura este
+
+            // Direct ByteBuffer (off-heap)
+            ByteBuffer buffer = ByteBuffer.allocateDirect(1024);
+            // allocateDirect() usa native memory fuera del heap
+            // Para I/O de alto rendimiento, bypass heap
+
+            // Code Cache (JIT compiled code)
+            // JVM internally usa esto para guardar código compilado por JIT
+            // -XX:ReservedCodeCacheSize=240m
+
+            // ¿Por qué off-heap?
+            // - I/O performance (evita copiar entre heap y native)
+            // - Large datasets sin golpear heap
+            // - Shared memory para processes externos
+            """,
+            q("¿Qué es off-heap memory?",
+                "Memoria fuera del JVM heap, en native memory. DirectByteBuffer usa esto. Útil para caches grandes o I/O eficiente. No gestionado por GC, así que cuidado con memory leaks. Monitorizar con Native Memory Tracking.")
+        );
+        sc(jvmMemoryModel, "Escape Analysis", "jvm-escape-analysis", 5,
+            "JIT compiler determina si un objeto escapa del método que lo creó.",
+            """
+            // ESCAPE STATES
+            // NoEscape: objeto no escapa del método
+            // ArgEscape: objeto pasado como argumento pero no escape globally
+            // GlobalEscape: objeto escapa al thread o método completo
+
+            public class EscapeDemo {
+                // Este objeto NO escapa si JIT lo determina
+                Point createLocal() {
+                    Point p = new Point(1, 2);  // local, no escapa
+                    return p;  // pero si lo retornas, ESCAPA
+                }
+
+                // OPTIMIZACIONES basadas en escape analysis
+                // 1) Stack Allocation: objetos no escaping pueden vivir en Stack
+                //    en lugar de Heap (no necesitan GC)
+                // 2) Scalar Replacement: campos del objeto se convierten a variables
+                //    escalares, evitando incluso la Allocation del objeto
+                // 3) Lock Elision: synchronized innecesarios se eliminan
+            }
+
+            // Enable/disable escape analysis
+            -XX:+DoEscapeAnalysis   // enabled por defecto desde Java 6
+            -XX:-DoEscapeAnalysis   // disable
+
+            // Estas optimizaciones son transparentes, pero reducen GC overhead
+            """,
+            q("¿Qué es scalar replacement?",
+                "JIT determina que un objeto no escapa y sus campos pueden ser registers/variables. En lugar de allocar el objeto, los campos se tratan como variables locales. Reduce allocation y GC overhead. Más agresivo que stack allocation.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
