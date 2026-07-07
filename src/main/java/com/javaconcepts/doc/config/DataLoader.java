@@ -3092,6 +3092,123 @@ public class DataLoader implements CommandLineRunner {
                 "Permite construir pipelines de procesamiento sin clases intermedias. Más legible que nested anonymous classes. Facilita composición de comportamiento reusable. Patterns como decorator se implementan naturalmente.")
         );
 
+        // ===== STRING STRINGBUILDER STRINGBUFFER =====
+        Concept stringStringBuilder = concept("String vs StringBuilder vs StringBuffer", "string-stringbuilder-stringbuffer", Block.JAVA_CORE, 23,
+            "String es inmutable en Java. Cada concatenación crea un nuevo objeto String, lo que genera overhead de memoria y垃圾 collection para muchos cambios. StringBuilder es mutable y no sincronizado (no thread-safe), ideal para single-thread. StringBuffer es mutable y sincronizado (thread-safe), pero más lento por la sincronización.",
+            null,
+            cq("¿Por qué String es inmutable en Java?",
+                "1) Security: URLs, connections, file paths no pueden cambiarse por otro thread. 2) Thread-safety: sin sincronización necesaria. 3) String pool: permite caching de Strings literales sin riesgo de que un thread modifique el de otro. 4) HashMap/HashSet: pueden usar String como clave porque es inmutable. 5) Class loading: el classpath es String, no puede alterarse."),
+            cq("¿Qué es el String Pool?",
+                "Heap space especial donde Java almacena String literals. Cuando creas String literal, JVM busca en el pool; si existe, reutiliza la referencia. Esto ahorra memoria. String s = \"hola\" usa pool. new String(\"hola\") crea objeto en heap normal, no en pool. intern() mueve un String del heap al pool."),
+            cq("¿Cuándo usar cada uno?",
+                "String: cuando el valor no cambia o cambia poco. StringBuilder: cuando construyes strings en single-thread (la mayoría de casos), loops, builder pattern. StringBuffer: cuando necesitas thread-safety y múltiples threads modifican el mismo string (raro, rara vez necesario hoy en día).")
+        );
+        sc(stringStringBuilder, "String: inmutable", "string-inmutable", 1,
+            "String es inmutable. Cada operación que parece modificar ('+', concat, replace) crea un NUEVO String. El original permanece igual.",
+            """
+            String s = "hola";
+            s.concat(" mundo");      // crea nuevo String, no modifica s
+            s = s + " mundo";        // s ahora apunta al nuevo String
+
+            // String pool
+            String a = "hola";
+            String b = "hola";
+            System.out.println(a == b);  // true (misma referencia del pool)
+
+            String c = new String("hola");
+            System.out.println(a == c);  // false (c es objeto nuevo en heap)
+
+            c = c.intern();              // c ahora apunta al pool
+            System.out.println(a == c);  // true
+
+            // Strings son ideales como claves de HashMap
+            Map<String, Integer> mapa = new HashMap<>();
+            mapa.put("clave", 1);  // funciona porque String es inmutable
+            """,
+            q("¿Métodos que PARECEN modificar String pero no lo hacen?",
+                "replace(), substring(), concat(), toLowerCase(), toUpperCase(), trim(), strip() todos devuelven NUEVO String. El original queda intacto. Por eso String es seguro para multi-thread sin sincronización."),
+            q("¿Qué es intern() de String?",
+                "String.intern() busca el String en el String pool. Si existe, devuelve la referencia del pool. Si no, añade el String al pool y devuelve la referencia. Útil para guardar memoria cuando tienes muchos Strings duplicados en heap.")
+        );
+        sc(stringStringBuilder, "StringBuilder: mutable y rápido", "stringbuilder", 2,
+            "StringBuilder es mutable. Sus métodos (append, insert, delete, reverse) MODIFICAN el buffer interno SIN crear nuevos objetos. Más eficiente para concatenaciones frecuentes.",
+            """
+            StringBuilder sb = new StringBuilder("hola");
+            sb.append(" mundo");       // modifica el buffer interno
+            sb.insert(0, "DIOS: ");   // inserta en posición
+            sb.delete(0, 5);           // elimina caracteres [0,5)
+            sb.reverse();             // invierte el string
+
+            String resultado = sb.toString();  // convierte a String
+
+            // Capacidad: StringBuilder grow automáticamente
+            StringBuilder sb2 = new StringBuilder();  // capacidad default 16
+            StringBuilder sb3 = new StringBuilder("hola");  // capacidad 16 + 4 = 20
+            StringBuilder sb4 = new StringBuilder(50);  // capacidad inicial 50
+
+            // Benchmark mental:
+            // String s = ""; for(int i=0;i<10000;i++) s += i;  // MAL: 10000 objetos
+            // StringBuilder sb = new StringBuilder(); for(int i=0;i<10000;i++) sb.append(i); // BIEN
+            """,
+            q("¿Cuánta más memoria usa StringBuilder que String para muchas operaciones?",
+                "Stringpool guarda literales sin overhead extra. Pero si construyes muchos strings temporales, String pool no ayuda; StringBuilder es mejor porque no crea N objetos intermediarios (crea 1 buffer que crece). Un String de 10KB concatenado 1000 veces: String = ~1000 objetos, StringBuilder = 1 con growth occasional."),
+            q("¿StringBuilder es thread-safe?",
+                "NO. Sus métodos no están sincronizados. Si múltiples threads acceden y modifican el mismo StringBuilder sin coordinación, puedes ver datos parcialmente escritos (torn read). Solo úsalo en single-thread o sincroniza externamente.")
+        );
+        sc(stringStringBuilder, "StringBuffer: synchronized", "stringbuffer", 3,
+            "StringBuffer es como StringBuilder pero CON synchronized en todos sus métodos. Thread-safe pero más lento.留下来的原因是 backward compatibility; hoy en día raramente necesario.",
+            """
+            StringBuffer sb = new StringBuffer("hola");
+
+            // Todos los métodos están synchronized:
+            synchronized(sb) {
+                sb.append(" mundo");       // solo un thread entra aquí a la vez
+                sb.insert(0, "DIOS: ");
+                sb.delete(0, 5);
+            }
+
+            // Mismos métodos que StringBuilder pero thread-safe
+            // Constructor y toString() NO están synchronized (no necesitan)
+
+            // Hoy en día:
+            // - Si necesitas thread-safety, considera StringJoiner o Stream.collect()
+            // - O usa streams para construir strings:.collect(Collectors.joining())
+            // - O StringJoiner (Java 8+) para unir con delimitadores
+            """,
+            q("¿StringBuffer vs synchronized StringBuilder manual?",
+                "StringBuffer tiene synchronized en CADA método. Hacer synchronized yourself en StringBuilder tiene el mismo efecto pero más verbose. StringBuffer existe por legacy; no hay ventaja real sobre StringBuilder + synchronized externo hoy."),
+            q("¿Alternativas modernas a StringBuffer?",
+                "StringJoiner (Java 8+): para unir strings con delimitador. Collectors.joining() en streams: stream.map(...).collect(Collectors.joining(\", \")). Más idiomático para Java moderno. Para logs o builders complejos, StringBuilder sigue siendo la opción.")
+        );
+        sc(stringStringBuilder, "StringJoiner yjoining()", "stringjoiner", 4,
+            "Java 8+: StringJoiner para unir strings con delimitador, prefijo y Sufijo. Collectors.joining() es la versión stream.",
+            """
+            // StringJoiner
+            StringJoiner joiner = new StringJoiner(\", \", \"[\", \"]\");
+            joiner.add(\"a\").add(\"b\").add(\"c\");
+            System.out.println(joiner.toString());  // [a, b, c]
+
+            // Collectors.joining() - más común en streams
+            List<String> nombres = List.of(\"Ana\", \"Pedro\", \"María\");
+            String csv = nombres.stream()
+                .collect(Collectors.joining(\", \"));
+            // \"Ana, Pedro, María\"
+
+            String withPrefix = nombres.stream()
+                .collect(Collectors.joining(\", \", \"[\", \"]\"));
+            // \"[Ana, Pedro, María]\"
+
+            // Antes de Java 8:
+            StringBuilder sb = new StringBuilder();
+            for (String n : nombres) {
+                if (sb.length() > 0) sb.append(\", \");
+                sb.append(n);
+            }
+            """,
+            q("¿Collectors.joining() vs StringBuilder en loops?",
+                "joining() es más legible para casos simples. Internamente usa StringJoiner que es similar a StringBuilder. Para loops simples, joining() gana en legibilidad. Para lógica compleja con condiciones, StringBuilder sigue siendo apropiado.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
