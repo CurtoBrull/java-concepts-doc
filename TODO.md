@@ -17,11 +17,11 @@
 - [ ] **Pattern Matching for switch (Java 21)** - expresiones de switch mejoradas
 - [ ] **Record** - ampliar explicación (cláusula canónica, métodos personalizados, immutable)
 - [x] **BigDecimal** - precisión decimal, compareTo vs equals, rounding modes (IMPLEMENTADO)
-- [ ] **Local-Variable Type Inference (var)** - Java 10+, limitaciones, buenas prácticas
+- [x] **Local-Variable Type Inference (var)** - Java 10+, limitaciones, buenas prácticas (IMPLEMENTADO)
 - [x] **Functional Interfaces** - Supplier, Consumer, Function, Predicate, sus métodos (IMPLEMENTADO)
 
 ### 🟡 AMPLIAR (explicaciones superficiales)
-- [ ] **Clone** - shallow copy vs deep copy, CopyConstructor, CloneNotSupportedException
+- [x] **Clone** - shallow copy vs deep copy, CopyConstructor, CloneNotSupportedException (IMPLEMENTADO)
 - [ ] **Anotaciones** - @Override, @Deprecated, @FunctionalInterface, @SuppressWarnings, @SafeVarargs
 - [ ] **Streams** - collect, partitionBy, groupingBy, flatMap, reduce en profundidad
 - [ ] **Parallel Streams** - ForkJoinPool, orden vs paralelismo, cuando NO usarlos
