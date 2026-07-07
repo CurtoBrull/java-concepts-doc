@@ -6079,7 +6079,439 @@ public class DataLoader implements CommandLineRunner {
             q("¿gradlew build vs bootJar?",
                 "build ejecuta tests y genera artefactos. bootJar crea el jar ejecutable de Spring Boot. bootRun lanza la aplicación."),
             q("¿Por qué Gradle es más rápido?",
-                "Build cache reusa outputs de tareas anteriores. Task incremental solo reejecuta lo necesario. Daemon mantiene un proceso Gradle vivo entre builds."));
+                "Build cache reusa outputs de tareas anteriores. Task incremental solo reejecuta lo necesario. Daemon mantiene un proceso Gradle vivo entre builds.")        );
+
+        // ===== APIs =====
+        Concept collectionsApi = concept("Collections API", "collections-api", Block.APIS, 1,
+            "Framework unificado para representar y manipular colecciones de objetos. Interfaces raíz: Collection, List, Set, Queue, Deque. Map es independiente. Implementaciones: ArrayList, LinkedList, HashSet, LinkedHashSet, TreeSet, HashMap, LinkedHashMap, TreeMap.",
+            null,
+            cq("¿Collection vs Collections?",
+                "Collection es la interfaz raíz del framework de colecciones. Collections es una clase utilitaria con métodos estáticos (sort, shuffle, reverse, etc). Son cosas distintas."),
+            cq("¿Cuándo usar List vs Set?",
+                "List: ordenado, permite duplicados, acceso por índice. Set: no permite duplicados, uso típico para membership/testing. ArrayList es default; LinkedList para inserciones/borrados frecuentes al inicio."),
+            cq("¿Cuándo usar HashMap vs TreeMap vs LinkedHashMap?",
+                "HashMap: performance O(1), sin orden. TreeMap: orden natural o comparator O(log n). LinkedHashMap: orden de inserción O(1).")
+        );
+        sc(collectionsApi, "List, Set, Map", "collections-list-set-map", 1,
+            "Interfaces principales y sus implementaciones.",
+            """
+            // List - ordenado, duplicados OK
+            List<String> list = new ArrayList<>();
+            list.add("a");
+            list.get(0);  // acceso por índice O(1)
+            list.remove(0);
+
+            // Set - sin duplicados
+            Set<String> set = new HashSet<>();
+            set.add("a");
+            set.add("a");  // ignora duplicado
+            set.contains("a");  // O(1)
+
+            // Map - clave/valor
+            Map<String, Integer> map = new HashMap<>();
+            map.put("a", 1);
+            map.get("a");  // O(1)
+            map.containsKey("a");
+
+            // Orden de iteración
+            Set<String> orderedSet = new LinkedHashSet<>();  // orden inserción
+            Map<String, Integer> treeMap = new TreeMap<>();  // orden natural
+            """,
+            q("¿ArrayList vs LinkedList?",
+                "ArrayList: acceso por índice O(1), inserción/borrado al final O(1), al inicio O(n). LinkedList: inserción/borrado O(1) si tienes referencia, búsqueda O(n). ArrayList es default por cache locality."),
+            q("¿HashSet vs TreeSet vs LinkedHashSet?",
+                "HashSet: O(1) operaciones, sin orden. TreeSet: O(log n), orden natural/comparator. LinkedHashSet: O(1), orden de inserción preservado.")
+        );
+        sc(collectionsApi, "Queue y Deque", "collections-queue-deque", 2,
+            "Colas y doble-ended queues para FIFO y LIFO.",
+            """
+            // Queue - FIFO
+            Queue<String> queue = new LinkedList<>();
+            queue.offer("primero");  // añadir
+            queue.poll();  // remover y devolver
+            queue.peek();  // ver sin remover
+
+            // Deque - doble extremo
+            Deque<String> deque = new ArrayDeque<>();
+            deque.offerFirst("a");   // añadir al inicio
+            deque.offerLast("b");    // añadir al final
+            deque.pollFirst();       // remover del inicio
+            deque.pollLast();        // remover del final
+
+            // PriorityQueue - orden natural o comparator
+            Queue<Integer> pq = new PriorityQueue<>(Comparator.reverseOrder());
+            pq.offer(3);
+            pq.offer(1);
+            pq.poll();  // devuelve 3 (el mayor con reverseOrder)
+            """,
+            q("¿Deque vs Queue normal?",
+                "Deque permite añadir/remover de ambos extremos. Queue solo permite FIFO: añadir al final, remover del inicio. Deque es más flexible."),
+            q("¿ArrayDeque vs LinkedList para Deque?",
+                "ArrayDeque tiene mejor rendimiento (cache locality, sin allocation por nodo). LinkedList usa más memoria (nodos enlazados). ArrayDeque es default.")
+        );
+        sc(collectionsApi, "Métodos utilitarios", "collections-utilitarios", 3,
+            "Métodos estáticos en Collections y List/Map interfaces.",
+            """
+            // Collections utilitarios
+            Collections.sort(list);
+            Collections.reverse(list);
+            Collections.shuffle(list);
+            Collections.binarySearch(sortedList, key);
+            Collections.frequency(collection, element);
+            Collections.disjoint(c1, c2);  // true si no comparten elementos
+            Collections.min(collection);
+            Collections.max(collection);
+
+            // Inmutables (Java 9+)
+            List<String> immutable = List.of("a", "b", "c");
+            Set<Integer> set2 = Set.of(1, 2, 3);
+            Map<String, Integer> map2 = Map.of("a", 1, "b", 2);
+
+            // Sincronizadas (legacy, ahora preferible CopyOnWriteArrayList)
+            List<String> syncList = Collections.synchronizedList(new ArrayList<>());
+            Set<String> syncSet = Collections.synchronizedSet(new HashSet<>());
+            """,
+            q("¿Por qué preferir List.of() sobre Collections.unmodifiableList()?",
+                "List.of() es más conciso, nulls no permitidos (previene NPE), y es más moderno. Collections.unmodifiableList() wraps una lista existente.")
+        );
+
+        Concept streamApi = concept("Stream API (java.util.stream)", "stream-api", Block.APIS, 2,
+            "Secuencia de elementos que soporta operaciones intermedias (transformación) y terminales (consumo). No modifica la fuente original. Lazy evaluation: solo se ejecutan cuando hay operación terminal.",
+            null,
+            cq("¿Stream vs Collection?",
+                "Collection es una estructura de datos en memoria. Stream no almacena elementos, procesa bajo demanda. Stream es consumible (una vez recorrido, se cierra)."),
+            cq("¿Por qué Stream es lazy?",
+                "Las operaciones intermedias возвращают новый Stream y no ejecutan nada hasta que se invoca una operación terminal. Esto permite optimizaciones como short-circuiting y fusión de operaciones.")
+        );
+        sc(streamApi, "Creación y operaciones intermedias", "stream-creation-intermediate", 1,
+            "Fuentes y operaciones que transforman el stream.",
+            """
+            // Creación
+            List<String> list = List.of("a", "b", "c");
+            Stream<String> s1 = list.stream();
+            Stream<String> s2 = Stream.of("a", "b", "c");
+            Stream<Integer> s3 = Stream.iterate(0, n -> n + 2);  // infinito
+            Stream<Integer> s4 = Stream.generate(() -> random.nextInt());  // infinito
+
+            // Operaciones intermedias
+            stream.filter(predicate)      // mantiene los que cumplen
+            stream.map(function)          // transforma cada elemento
+            stream.flatMap(mapper)        // aplana streams internos
+            stream.distinct()             // elimina duplicados
+            stream.sorted()               // ordena
+            stream.limit(n)               // primeros n
+            stream.skip(n)                // ignora primeros n
+            stream.takeWhile(predicate)   // Java 9+ hasta que falle
+            stream.dropWhile(predicate)   // Java 9+ después de que falle
+
+            // Chaining
+            list.stream()
+                .filter(s -> s.length() > 1)
+                .map(String::toUpperCase)
+                .distinct()
+                .sorted();
+            """,
+            q("¿filter vs map?",
+                "filter reduce el número de elementos (predicado booleano). map transforma cada elemento a otro tipo. Ambos devuelven Stream."),
+            q("¿flatMap cuándo?",
+                "Cuando cada elemento produce múltiples elementos. Ej: lista de listas -> lista única. streamOfLists.flatMap(List::stream)")
+        );
+        sc(streamApi, "Operaciones terminales", "stream-terminal", 2,
+            "Operaciones que producen resultado final.",
+            """
+            // collectors
+            stream.collect(Collectors.toList())
+            stream.collect(Collectors.toSet())
+            stream.collect(Collectors.toMap(keyMapper, valueMapper))
+            stream.collect(Collectors.groupingBy(classifier))
+            stream.collect(Collectors.partitioningBy(predicate))
+            stream.collect(Collectors.joining(", "))
+            stream.collect(Collectors.counting())
+            stream.collect(Collectors.summingInt mapper)
+            stream.collect(Collectors.maxBy comparator)
+            stream.collect(Collectors.collectingAndThen(collector, finisher))
+
+            // reducción
+            stream.reduce(identity, accumulator)  // Optional si sin identity
+            stream.count()
+            stream.forEach(action)
+            stream.forEachOrdered(action)
+            stream.toArray()
+            stream.findFirst()  // Optional
+            stream.findAny()    // Optional
+            stream.anyMatch(predicate)
+            stream.allMatch(predicate)
+            stream.noneMatch(predicate)
+
+            // orden
+            list.stream().sorted(Comparator.comparing(String::length).reversed());
+            """,
+            q("collect vs reduce?",
+                "collect usa Collectors para acumular en estructuras mutable (StringBuilder, List, etc). reduce es para operaciones algebraicas (suma, producto). collect es más flexible y performante.")
+        );
+
+        Concept funcPackage = concept("java.util.function", "java-util-function", Block.APIS, 3,
+            "Functional interfaces predefinidas para lambdas y method references. Cubren los casos más comunes: función, consumidor, proveedor, predicado.",
+            null,
+            cq("¿Por qué java.util.function?",
+                "Evita crear interfaces funcionales custom para cada lambda. Son el target de expresiones lambda. JDK provee estas para uso general."),
+            cq("¿Function vs Consumer vs Supplier vs Predicate?",
+                "Function<T,R>: T -> R (transforma). Consumer<T>: T -> void (consume). Supplier<T>: () -> T (produce). Predicate<T>: T -> boolean (testea).")
+        );
+        sc(funcPackage, "Function, Consumer, Supplier, Predicate", "func-basic", 1,
+            "Las cuatro interfaces base.",
+            """
+            // Function<T,R> - transforma T en R
+            Function<String, Integer> length = String::length;
+            length.apply("hola");  // 4
+
+            // Consumer<T> - consume sin devolver
+            Consumer<String> printer = System.out::println;
+            printer.accept("hola");
+
+            // Supplier<T> - provee T
+            Supplier<LocalDate> ahora = LocalDate::now;
+            ahora.get();
+
+            // Predicate<T> - test boolean
+            Predicate<String> noVacia = s -> !s.isEmpty();
+            noVacia.test("hola");  // true
+
+            // BiFunction, BiConsumer, BiPredicate
+            BiFunction<Integer, Integer, Integer> suma = Integer::sum;
+            BiConsumer<String, Integer> printPair = (s, n) -> System.out.println(s + n);
+            """,
+            q("¿Method reference cuándo?",
+                "Cuando el lambda solo llama a un método existente. String::length vs s -> s.length(). Más legible.")
+        );
+        sc(funcPackage, "Especializaciones y compose", "func-specialized", 2,
+            "Variantes para tipos primitivos y composición.",
+            """
+            // Primitivos (evita boxing)
+            IntFunction<R>
+            LongConsumer
+            DoubleSupplier
+            ToIntFunction<T>  // convierte T a int
+            IntPredicate
+
+            // Compose
+            Function<String, String> f1 = String::toUpperCase;
+            Function<String, String> f2 = s -> s + "!";
+            Function<String, String> combined = f1.andThen(f2);  // aplica f1 luego f2
+            combined.apply("hola");  // HOLA!
+
+            Function<String, String> composed = f1.compose(f2);  // aplica f2 luego f1
+
+            // Predicate combinators
+            Predicate<String> p1 = String::isEmpty;
+            Predicate<String> p2 = s -> s.length() > 3;
+            p1.and(p2);   // AND
+            p1.or(p2);   // OR
+            p1.negate();  // NOT
+            """,
+            q("¿andThen vs compose?",
+                "andThen: a.andThen(b) aplica a primero, luego b sobre el resultado. compose: a.compose(b) aplica b primero, luego a sobre el resultado.")
+        );
+
+        Concept jdbcApi = concept("JDBC API", "jdbc-api", Block.APIS, 4,
+            "Java Database Connectivity. API estándar para acceder a bases de datos relacionales. DriverManager obtiene conexiones. Connection, Statement, PreparedStatement, ResultSet son las clases principales.",
+            null,
+            cq("¿JDBC pasos básicos?",
+                "1) Cargar driver. 2) Obtener Connection. 3) Crear Statement. 4) Ejecutar query. 5) Procesar ResultSet. 6) Cerrar recursos (finally/try-with-resources)."),
+            cq("¿Statement vs PreparedStatement?",
+                "Statement: queries estáticos, riesgo SQL injection. PreparedStatement: precompilado, parámetros, mejor performance en queries repetidos, previene SQL injection.")
+        );
+        sc(jdbcApi, "Básico: Connection, Statement, ResultSet", "jdbc-basic", 1,
+            "Uso típico con try-with-resources.",
+            """
+            String url = "jdbc:postgresql://localhost:5432/mydb";
+            String user = "admin";
+            String pass = "password";
+
+            try (Connection conn = DriverManager.getConnection(url, user, pass);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT id, name FROM users")) {
+
+                while (rs.next()) {
+                    int id = rs.getInt("id");
+                    String name = rs.getString("name");
+                    System.out.println(id + ": " + name);
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            """,
+            q("¿Por qué try-with-resources?",
+                "Automáticamente cierra Connection, Statement, ResultSet aunque haya excepciones. previene resource leaks."),
+            q("¿executeQuery vs executeUpdate?",
+                "executeQuery: SELECT (devuelve ResultSet). executeUpdate: INSERT/UPDATE/DELETE (devuelve int: filas afectadas).")
+        );
+        sc(jdbcApi, "PreparedStatement y transacciones", "jdbc-ps-transactions", 2,
+            "Queries parametrizados y control transaccional.",
+            """
+            // PreparedStatement
+            String sql = "INSERT INTO users (name, email) VALUES (?, ?)";
+            try (PreparedStatement ps = conn.prepareStatement(sql,
+                    Statement.RETURN_GENERATED_KEYS)) {
+                ps.setString(1, name);
+                ps.setString(2, email);
+                int rows = ps.executeUpdate();
+
+                // Obtener ID generado
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    if (keys.next()) {
+                        long id = keys.getLong(1);
+                    }
+                }
+            }
+
+            // Transacción manual
+            conn.setAutoCommit(false);
+            try {
+                stmt.executeUpdate("INSERT INTO accounts...");
+                stmt.executeUpdate("UPDATE logs...");
+                conn.commit();
+            } catch (Exception e) {
+                conn.rollback();
+            } finally {
+                conn.setAutoCommit(true);
+            }
+            """,
+            q("¿setAutoCommit(false)?",
+                "Por defecto cada statement es su propia transacción. setAutoCommit(false) permite agrupar múltiples operaciones en una transacción atómica. commit() confirma, rollback() deshace.")
+        );
+
+        Concept nioApi = concept("Java NIO", "java-nio", Block.APIS, 5,
+            "New I/O. Buffers, Channels, Selectors para I/O no bloqueante y eficiente. Principal para servidores de alta concurrencia.",
+            null,
+            cq("¿NIO vs java.io tradicional?",
+                "java.io: stream-oriented, bloqueante. NIO: buffer-oriented, puede ser no bloqueante (Selectors). NIO es mejor para muchos conexiones simultáneas (concurrencia alta).")
+        );
+        sc(nioApi, "Path, Files, Buffer", "nio-basics", 1,
+            "APIs modernas para manejo de archivos.",
+            """
+            import java.nio.file.*;
+
+            // Path (reemplaza File)
+            Path p = Paths.get("folder", "file.txt");
+            Path absolute = p.toAbsolutePath();
+
+            // Files utilitarios
+            String content = Files.readString(p);
+            Files.writeString(p, "text");
+            byte[] bytes = Files.readAllBytes(p);
+            List<String> lines = Files.readAllLines(p);
+
+            Files.copy(src, dest);
+            Files.move(src, dest);
+            Files.delete(p);
+            boolean exists = Files.exists(p);
+            boolean dir = Files.isDirectory(p);
+
+            // Buffer (para NIO Channels)
+            ByteBuffer buffer = ByteBuffer.allocate(1024);
+            buffer.putInt(42);
+            buffer.flip();  // prepara para lectura
+            int value = buffer.getInt();
+            """,
+            q("¿Paths.get vs new File()?",
+                "Paths.get() devuelve Path (interfaz más moderna). File es legacy. Path tiene mejor API para manipulación de rutas.")
+        );
+        sc(nioApi, "FileVisitor y WatchService", "nio-visitor-watch", 2,
+            "Recorrido recursivo y monitoring de archivos.",
+            """
+            // Recorrer árbol de directorios
+            Files.walkFileTree(path, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    System.out.println(file);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+
+            // WatchService - monitoring cambios
+            WatchService watcher = FileSystems.getDefault().newWatchService();
+            path.register(watcher, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
+
+            while (true) {
+                WatchKey key = watcher.take();
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    System.out.println(event.kind() + ": " + event.context());
+                }
+                key.reset();
+            }
+            """,
+            q("¿WalkFileTree vs Files.walk()?",
+                "walk() devuelve Stream<Path> (más conciso para casos simples). walkFileTree() con FileVisitor da más control sobre cada paso del recorrido.")
+        );
+
+        Concept httpClientApi = concept("HttpClient API (Java 11+)", "http-client-api", Block.APIS, 6,
+            "Cliente HTTP moderno, síncrono y asíncrono. Reemplaza HttpURLConnection y RestTemplate para uso directo (no Spring).",
+            null,
+            cq("¿HttpClient vs RestTemplate?",
+                "RestTemplate es blocking. HttpClient puede ser sync o async. HttpClient es el cliente HTTP nativo de Java moderno. RestTemplate está en modo mantenimiento."),
+            cq("¿Cuándo usar sync vs async?",
+                "Sync: para requests simples, cuando necesitas el resultado antes de continuar. Async (sendAsync): cuando el request puede tomar tiempo y quieres procesar otros tasks en paralelo.")
+        );
+        sc(httpClientApi, "GET, POST, headers", "httpclient-get-post", 1,
+            "Uso básico con BodyHandlers.",
+            """
+            HttpClient client = HttpClient.newHttpClient();
+
+            // GET
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.example.com/users/1"))
+                .header("Accept", "application/json")
+                .GET()
+                .build();
+
+            HttpResponse<String> response = client.send(request,
+                HttpResponse.BodyHandlers.ofString());
+
+            System.out.println(response.statusCode());
+            System.out.println(response.body());
+
+            // POST
+            HttpRequest postReq = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.example.com/users"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                    "{\"name\": \"Ana\", \"email\": \"ana@example.com\"}"))
+                .build();
+
+            HttpResponse<String> postRes = client.send(postReq,
+                HttpResponse.BodyHandlers.ofString());
+            """,
+            q("¿BodyHandlers.ofString() vs ofFile()?",
+                "ofString(): lee body como String en memoria. ofFile(): escribe body directamente a archivo. Para responses grandes, usar ofFile() evita mantener todo en memoria.")
+        );
+        sc(httpClientApi, "Async y manejo de JSON", "httpclient-async", 2,
+            "Requests asíncronos y processing de JSON.",
+            """
+            // Async con CompletableFuture
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.example.com/users/1"))
+                .build();
+
+            CompletableFuture<HttpResponse<String>> future =
+                client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+
+            future.thenApply(HttpResponse::body)
+                  .thenAccept(System.out::println);
+
+            // Esperar resultado
+            String result = future.join();
+
+            // Manejo de errores
+            future.exceptionally(ex -> {
+                System.err.println("Error: " + ex.getMessage());
+                return null;
+            });
+            """,
+            q("¿send vs sendAsync?",
+                "send() es blocking (sincrono). sendAsync() devuelve CompletableFuture<HttpResponse> y es no-blocking. Usar sendAsync() para concurrencia alta.")
+        );
 
         // Guardar/actualizar conceptos raíz de forma idempotente
         List<Concept> allRoots = List.of(
@@ -6095,7 +6527,8 @@ public class DataLoader implements CommandLineRunner {
             jpa, hibernate, transacciones, jdbc,
             testing,
             solid, cleanCode,
-            maven, git, docker, sql, logging, gradle
+            maven, git, docker, sql, logging, gradle,
+            collectionsApi, streamApi, funcPackage, jdbcApi, nioApi, httpClientApi
         );
 
         // Carga masiva de datos existentes para reducir consultas N+1

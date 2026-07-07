@@ -6,5 +6,6 @@ public enum Block {
     SPRING,
     SPRING_BOOT,
     CLEAN_CODE_SOLID,
-    TOOLS
+    TOOLS,
+    APIS
 }

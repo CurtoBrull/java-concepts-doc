@@ -34,6 +34,14 @@
 - [x] **equals y hashCode** (concepto "Objeto") - ampliar con código de implementación correcta (IMPLEMENTADO)
 - [x] **interfaces** - ampliar con @FunctionalInterface y ejemplos de lambda (IMPLEMENTADO)
 
+### 🟡 APIs FUNDAMENTALES
+- [x] **Collections API** - List, Set, Map, Queue, Deque, interfaces, implementaciones, métodos clave (IMPLEMENTADO)
+- [x] **Stream API** - creation, intermediate ops, terminal ops, collect, reduce (IMPLEMENTADO)
+- [x] **java.util.function** - Function, Consumer, Supplier, Predicate, BiFunction, aridad (IMPLEMENTADO)
+- [x] **JDBC API** - Connection, Statement, PreparedStatement, ResultSet, transacciones (IMPLEMENTADO)
+- [x] **Java NIO** - Buffer, Channel, Path, Files, async I/O (IMPLEMENTADO)
+- [x] **HttpClient API** - Java 11+, sync/async requests, headers, body handlers (IMPLEMENTADO)
+
 ### Conceptos Java Core YA IMPLEMENTADOS
 - [x] **Paso por Valor y Referencia**
 - [x] **Interfaces Funcionales**
