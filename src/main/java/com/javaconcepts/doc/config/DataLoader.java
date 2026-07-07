@@ -5008,6 +5008,153 @@ public class DataLoader implements CommandLineRunner {
                 "JIT determina que un objeto no escapa y sus campos pueden ser registers/variables. En lugar de allocar el objeto, los campos se tratan como variables locales. Reduce allocation y GC overhead. Más agresivo que stack allocation.")
         );
 
+        // ===== RECORDS =====
+        Concept records = concept("Records", "records", Block.JAVA_CORE, 38,
+            "Records (Java 16+) son clases especiales designed para transportar data. Son inmutables por defecto, reducen boilerplate drastically (no necesitas escribir equals, hashCode, toString, getters). El compilador genera automaticamente: constructor canonico, getters (nombre(), no getX()), equals, hashCode, toString.",
+            null,
+            cq("¿Qué es un record?",
+                "Un record es una clase especial que sirve como carrier de datos inmutables. Se declara con 'record' en lugar de 'class'. El compilador genera automaticamente: constructor con parametros (canonical constructor), getters (recordCampo() no getRecordCampo()), equals/hashCode basado en campos, toString legible. Ideales para DTOs, response objects, data carriers."),
+            cq("¿Qué genera automaticamente el compilador para un record?",
+                "Para 'record Persona(String nombre, int edad)': 1) Constructor canonico Persona(String nombre, int edad). 2) Getters: nombre(), edad(). 3) equals() y hashCode() basados en todos los campos. 4) toString(): 'Persona[nombre=Juan, edad=30]'. No se genera setter porque es inmutable."),
+            cq("¿Cuándo usar record vs class normal?",
+                "Usa record cuando: tienes un POJO/plain data carrier sin logica, necesitas inmutabilidad, quieres menos boilerplate. Usa class normal cuando: necesitas mutabilidad, tienes logica de negocio compleja, necesitas herencia de implementacion, necesitas validation complex en el constructor.")
+        );
+        sc(records, "Sintaxis básica", "records-basico", 1,
+            "Creación y uso de records.",
+            """
+            // Declaration
+            public record Persona(String nombre, int edad) {}
+
+            // Uso
+            Persona p = new Persona("Juan", 30);
+            p.nombre();    // "Juan" (getter es nombre(), no getNombre())
+            p.edad();     // 30
+
+            // equals() automatico basado en campos
+            Persona p2 = new Persona("Juan", 30);
+            p.equals(p2);  // true
+
+            // toString automatico
+            System.out.println(p);  // Persona[nombre=Juan, edad=30]
+
+            // Records son inmutables
+            // p.nombre("Pedro");  // ERROR: no existe setter
+            // p.edad(25);         // ERROR: no existe setter
+
+            // Para 'modificar', crear nuevo
+            Persona p3 = new Persona("Pedro", p.edad());  // copiar con cambios
+            """,
+            q("¿Record vs Lombok @Data?",
+                "Lombok @Data genera getters, setters, equals, hashCode, toString en mutable classes. Records son inmutables por naturaleza. Records son built-in del lenguaje (no necesitas dependencia de terceros). Lombok permite mutable fields. Para nuevo codigo, preference records; para codigo existente con mutabilidad, Lombok.")
+        );
+        sc(records, "Constructor canónico y validación", "records-constructor", 2,
+            "El constructor autogenerado puede ser reemplazado o validado.",
+            """
+            // Constructor canonico por defecto
+            public record Rango(int min, int max) {}
+
+            // Validacion en constructor
+            public record Rango(int min, int max) {
+                public Rango {
+                    if (min > max) {
+                        throw new IllegalArgumentException(\"min > max\");
+                    }
+                }
+            }
+
+            // Constructor con validacion DEBE asignar a los fields
+            // (min > max) -> throw antes de asignar
+
+            // Constructor compacto: solo validacion, no asignacion
+            public record Rango(int min, int max) {
+                public Rango {
+                    if (min > max)
+                        throw new IllegalArgumentException();
+                    // Los campos ya estan asignados por el compact constructor
+                }
+            }
+
+            // Constructor adicional (sobrecarga)
+            public record Rango(int min, int max) {
+                public Rango(int valor) {
+                    this(valor, valor);  // delegar al canonico
+                }
+            }
+            """,
+            q("¿Qué es el compact constructor?",
+                "Un constructor special en records que solo hace validacion. No tiene parametros; los fields ya estan inicializados por el caller antes de entrar. Se usa para validar invariants. El cuerpo del compact constructor es la unica diferencia del constructor canonico autogenerado.")
+        );
+        sc(records, "Métodos y clases internas", "records-metodos", 3,
+            "Records pueden tener metodos, clases internas, y mas.",
+            """
+            // Records pueden tener metodos
+            public record Dinero(double cantidad, String moneda) {
+                public Dinero enEuros(double tipoCambio) {
+                    if (\"EUR\".equals(this.moneda)) {
+                        return this;
+                    }
+                    return new Dinero(cantidad * tipoCambio, \"EUR\");
+                }
+
+                public boolean esMayorQue(Dinero otro) {
+                    return this.cantidad > otro.cantidad;
+                }
+            }
+
+            // Records pueden tener clases internas
+            public record ListaNodos(Nodo head) {
+                public static class Nodo {
+                    int valor;
+                    Nodo next;
+                }
+            }
+
+            // Records pueden implementar interfaces
+            public record ComparablePersona(String nombre)
+                implements Comparable<ComparablePersona> {
+                public int compareTo(ComparablePersona other) {
+                    return this.nombre.compareTo(other.nombre);
+                }
+            }
+
+            // Records pueden ser sealed (Java 17+)
+            public sealed record Figura permits Circulo, Cuadrado {}
+            """,
+            q("¿Records pueden extender otras clases?",
+                "No. Records no pueden extender ninguna clase ni ser extendidos. Son implicitly final (no puede haber subclases). Si necesitas jerarquia, usa sealed classes para la jerarquia y records para los nodos leaf. Un record solo puede implementar interfaces.")
+        );
+        sc(records, "Records en Serialización y Colecciones", "records-serializacion", 4,
+            "Records funcionan con serialization y colecciones.",
+            """
+            // Records son serializables (si los campos son serializables)
+            public record Transferencia(String origen, String destino, double cantidad)
+                implements Serializable {}
+
+            // Funcionan en HashSet/HashMap/HashSet
+            Set<Persona> set = new HashSet<>();
+            set.add(new Persona(\"Juan\", 30));
+            set.contains(new Persona(\"Juan\", 30));  // true (equals funciona)
+
+            // Records en streams
+            List<Persona> personas = List.of(
+                new Persona(\"Ana\", 25),
+                new Persona(\"Juan\", 30)
+            );
+            personas.stream()
+                .map(Persona::nombre)
+                .toList();
+
+            // Pattern matching con records (Java 16+)
+            void process(Object obj) {
+                if (obj instanceof Persona p) {
+                    System.out.println(p.nombre());  // sin cast
+                }
+            }
+            """,
+            q("¿Records vs ArrayList como DTO?",
+                "Records son inmutables, concisos, y con equals/hashCode/toString automaticos. ArrayList es mutable, tiene muchos metodos. Para DTOs de solo lectura, records son ideales. Para colecciones de muchos elementos que crecen, ArrayList. Un record no es una coleccion; es un objeto que PUEDE contener una coleccion.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
