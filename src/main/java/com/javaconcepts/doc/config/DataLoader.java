@@ -3441,6 +3441,112 @@ public class DataLoader implements CommandLineRunner {
                 "Enum: cuando tienes un conjunto CERRADO de instancias predefinidas (LUNES, MARTES...). Enum es singleton por valor. Sealed: cuando tienes un conjunto CERRADO de TIPOS (subclases), cada una con su propio estado. Enum no puede tener subclases; sealed sí puede tener jerarquía.")
         );
 
+        // ===== BIGDECIMAL =====
+        Concept bigDecimalConcept = concept("BigDecimal", "bigdecimal", Block.JAVA_CORE, 26,
+            "BigDecimal permite representación de números decimales exactos (para cálculos financieros,货币). double y float tienen problemas de precisión (0.1 + 0.2 != 0.3 en binario). BigDecimal usa escala fija y operaciones de punto fijo. También permite control de redondeo (HALF_UP, FLOOR, CEILING...).",
+            null,
+            cq("¿Por qué no usar double para dinero?",
+                "double usa representación binaria de punto flotante (IEEE 754). Muchos decimales no son representables exactamente en binario (0.1, 0.2). Esto causa errores: 1.0 - 0.9 != 0.1. Para dinero (€10.99), necesitas precisión exacta. BigDecimal representa decimales exactamente usando strings o BigInteger + escala."),
+            cq("¿equals vs compareTo en BigDecimal?",
+                "equals() incluye la escala en comparación: new BigDecimal(\"1.0\").equals(new BigDecimal(\"1.00\")) es FALSE (escalas diferentes). compareTo() ignora la escala: new BigDecimal(\"1.0\").compareTo(new BigDecimal(\"1.00\")) es 0 (IGUAL). Siempre usa compareTo() para comparaciones numéricas."),
+            cq("¿Qué es scale en BigDecimal?",
+                "Scale es el número de dígitos a la derecha del punto decimal. new BigDecimal(\"123.45\") tiene scale 2. new BigDecimal(\"123\") tiene scale 0. setScale() cambia la escala. stripTrailingZeros() elimina ceros innecesarios.")
+        );
+        sc(bigDecimalConcept, "Creación y operaciones", "bigdecimal-basico", 1,
+            "Formas de crear BigDecimal y operaciones básicas.",
+            """
+            import java.math.BigDecimal;
+            import java.math.RoundingMode;
+
+            // CREACIÓN - USAR STRING, NO DOUBLE
+            BigDecimal bd1 = new BigDecimal(\"0.1\");     // EXACTO
+            BigDecimal bd2 = BigDecimal.valueOf(0.1);   // convierte double a BigDecimal
+
+            // MAL: BigDecimal bd3 = new BigDecimal(0.1); // 0.1000000000000000055511...
+
+            // OPERACIONES
+            BigDecimal a = new BigDecimal(\"10.50\");
+            BigDecimal b = new BigDecimal(\"3.00\");
+
+            a.add(b);           // 13.50
+            a.subtract(b);     // 7.50
+            a.multiply(b);      // 31.50
+            a.divide(b, 2, RoundingMode.HALF_UP);  // 3.50 (escala 2)
+            a.pow(2);          // 110.25
+
+            // scale y strip
+            BigDecimal x = new BigDecimal(\"1.000\");
+            x.stripTrailingZeros();  // 1 (scale 0)
+
+            // compareTo vs equals
+            new BigDecimal(\"1.0\").compareTo(new BigDecimal(\"1.00\"));  // 0 (IGUAL)
+            new BigDecimal(\"1.0\").equals(new BigDecimal(\"1.00\"));   // false (scale diferente)
+            """,
+            q("¿Por qué usar BigDecimal.valueOf(double) en lugar de new BigDecimal(double)?",
+                "valueOf(double) internally uses Double.toString() para convertir, lo que redondea a una representación legible. new BigDecimal(double) toma la representación binaria exacta del double, que contiene el error de punto flotante. valueOf es más seguro para convertir doubles.")
+        );
+        sc(bigDecimalConcept, "RoundingMode y división", "bigdecimal-rounding", 2,
+            "BigDecimal requiere especificar rounding mode para divide() porque puede resultar en decimal infinito (1/3).",
+            """
+            import java.math.BigDecimal;
+            import java.math.RoundingMode;
+
+            BigDecimal uno = BigDecimal.ONE;
+            BigDecimal tres = new BigDecimal(\"3\");
+
+            // 1 / 3 = 0.333... infinito
+            uno.divide(tres, 10, RoundingMode.HALF_UP);  // 0.3333333333
+
+            // MODOS DE REDONDEO
+            BigDecimal num = new BigDecimal(\"2.555\");
+
+            num.setScale(2, RoundingMode.HALF_UP);       // 2.56 (redondea 5 arriba)
+            num.setScale(2, RoundingMode.HALF_DOWN);     // 2.55 (redondea 5 abajo)
+            num.setScale(2, RoundingMode.HALF_EVEN);     // 2.56 (Banker's rounding)
+            num.setScale(2, RoundingMode.FLOOR);         // 2.55 (siempre hacia abajo)
+            num.setScale(2, RoundingMode.CEILING);       // 2.56 (siempre hacia arriba)
+            num.setScale(2, RoundingMode.UP);            // 2.56 (siempre lejos de cero)
+            num.setScale(2, RoundingMode.DOWN);          // 2.55 (siempre hacia cero)
+
+            // HALF_EVEN (Banker's rounding): redondea al más cercano, pero si equidistante, redondea al par
+            new BigDecimal(\"2.5\").setScale(0, RoundingMode.HALF_EVEN);  // 2 (par)
+            new BigDecimal(\"3.5\").setScale(0, RoundingMode.HALF_EVEN);  // 4 (par)
+            """,
+            q("¿Qué es Banker's Rounding (HALF_EVEN)?",
+                "Redondea al más cercano, pero si está exactamente en medio, redondea al número par más cercano. 2.5 → 2, 3.5 → 4. Reduce bias en series de redondeos. Es el default en BigDecimal. Usado en accounting financiero."),
+            q("¿Cuándo usar divide() con escala fija vs. setScale()?",
+                "divide() con scale explícita para resultados de división. setScale() para ajustar un número existente. Ambos aceptan RoundingMode. Si divides y luego trabajas con el resultado, usa divide con la escala adecuada desde el inicio.")
+        );
+        sc(bigDecimalConcept, "Usos prácticos y pitfalls", "bigdecimal-pitfalls", 3,
+            "Buenas prácticas y errores comunes con BigDecimal.",
+            """
+            // PATTERN: cálculo de precio
+            BigDecimal precio = new BigDecimal(\"19.99\");
+            BigDecimal iva = new BigDecimal(\"1.21\");  // 21% IVA
+            BigDecimal total = precio.multiply(iva).setScale(2, RoundingMode.HALF_UP);
+            // 24.188 -> 24.19
+
+            // NO hagas esto:
+            BigDecimal descuento = new BigDecimal(\"10\");  // escala 0
+            BigDecimal resultado = precio.subtract(descuento);  // 9.99 (escala 2 se mantiene)
+
+            // CUIDADO: arithmetic() devuelve BigDecimal immutable
+            BigDecimal x = new BigDecimal(\"1\");
+            x.add(BigDecimal.ONE);  // NO modifica x, devuelve nuevo BigDecimal
+            x = x.add(BigDecimal.ONE);  // x ahora es 2
+
+            // BigDecimal es IMMUTABLE: operaciones siempre devuelven nuevo objeto
+            // Para múltiplos: multiply(new BigDecimal(\"2\")) o multiply(TWO)
+
+            // String vs valueOf para parsear
+            BigDecimal.parse(\"123.45\");  // Java 18+ tiene parse
+            """,
+            q("¿BigDecimal es inmutable?",
+                "Sí. Todas las operaciones devuelven nuevos BigDecimal. add(), subtract(), multiply() no modifican el original. Esto es thread-safe pero puede crear muchos objetos si haces muchas operaciones en cadena. Para eficiencia, usa el método que accepta MathContext para precisión."),
+            q("¿Cómo formatear BigDecimal como String con Locale?",
+                "Usa NumberFormat o DecimalFormat. new DecimalFormat(\"#,##0.00\").format(bd.getValue()). O usa String.format(Locale.US, \"%.2f\", bd.doubleValue()) aunque pierde precisión. Para money en web, mejor enviar BigDecimal y formatear en frontend.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
