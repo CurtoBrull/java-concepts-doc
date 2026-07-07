@@ -2977,6 +2977,121 @@ public class DataLoader implements CommandLineRunner {
                 "Thread-safe por diseño, sin sincronización. Sin efectos laterales inesperados. Objetos inmutables son predecibles y seguros para caching y uso como claves de HashMap.")
         );
 
+        // ===== INTERFACES FUNCIONALES =====
+        Concept functionalInterfaces = concept("Interfaces Funcionales", "interfaces-funcionales", Block.JAVA_CORE, 22,
+            "Una interfaz funcional tiene exactamente un método abstracto. Es la base para lambda expressions y method references (Java 8). @FunctionalInterface marca interfaces intencionalmente funcionales y fuerza al compilador a verificar que solo tienen un método abstracto. El paquete java.util.function contiene las más comunes.",
+            null,
+            cq("¿Qué es una interfaz funcional?",
+                "Interfaz con un único método abstracto. Puede tener métodos default, static o private (desde Java 9). @FunctionalInterface es optional pero vérifies en compile-time que cumple el contrato. Permiten usar lambda expressions: () -> expresion o (a, b) -> bloque."),
+            cq("¿Por qué existen las interfaces funcionales?",
+                "Son el target de las lambda expressions. Antes de lambdas, se usaban anonymous inner classes para comportamiento. Lambdas proporcionan sintaxis más concisa. java.util.function ofrece interfaces genéricas predefinidas: Function, Consumer, Supplier, Predicate, y sus variantes primitivas."),
+            cq("¿Cuál es la diferencia entre Function, Consumer, Supplier y Predicate?",
+                "Function<T,R>: acepta T, devuelve R. Consumer<T>: acepta T, no devuelve nada (side effects). Supplier<T>: no acepta nada, devuelve T. Predicate<T>: acepta T, devuelve boolean (test). Todos en java.util.function.")
+        );
+        sc(functionalInterfaces, "java.util.function principales", "functional-interface-common", 1,
+            "Las cuatro interfaces funcionales más usadas del JDK.",
+            """
+            import java.util.function.*;
+
+            // Function<T,R>: T -> R
+            Function<String, Integer> length = String::length;
+            length.apply("hola");  // 4
+
+            // Consumer<T>: T -> void
+            Consumer<String> printer = System.out::println;
+            printer.accept("hola");  // imprime
+
+            // Supplier<T>: () -> T
+            Supplier<LocalDate> now = LocalDate::now;
+            now.get();  // fecha actual
+
+            // Predicate<T>: T -> boolean
+            Predicate<String> isEmpty = String::isEmpty;
+            isEmpty.test("");  // true
+
+            // BiFunction<T,U,R>: (T,U) -> R
+            BiFunction<Integer, Integer, Integer> sum = Integer::sum;
+
+            // UnaryOperator<T>: T -> T (extiende Function<T,T>)
+            UnaryOperator<Integer> doubleIt = n -> n * 2;
+
+            // BinaryOperator<T>: (T,T) -> T (extiende BiFunction<T,T,T>)
+            BinaryOperator<Integer> max = Integer::max;
+            """,
+            q("¿Qué es un BiConsumer, BiFunction, BiPredicate?",
+                "Variantes que aceptan dos argumentos. BiConsumer<T,U>: (T,U) -> void. BiFunction<T,U,R>: (T,U) -> R. BiPredicate<T,U>: (T,U) -> boolean. Útiles cuando necesitas operar con dos valores."),
+            q("¿Qué son las variantes primitivas (IntFunction, IntConsumer, etc.)?",
+                "Evitan boxing/unboxing para tipos primitivos. IntFunction<R> acepta int y devuelve R. IntConsumer acepta int. IntPredicate acepta int. Hay versiones para int, long, double (Int-, Long-, Double-). Mejora rendimiento al evitar autoboxing en streams o cálculos.")
+        );
+        sc(functionalInterfaces, "Lambdas y Method References", "lambdas-method-references", 2,
+            "Lambda expression: función anónima que implementa interfaz funcional. Method reference: atajo para escribir lambdas simples.",
+            """
+            // Lambda: expresión que implementa el único método
+            Predicate<String> p1 = s -> s.isEmpty();           // lambda
+            Predicate<String> p2 = String::isEmpty;             // method reference
+
+            // Tipos de method reference
+            List<String> nombres = List.of("Ana", "Pedro");
+
+            // 1. Static: ContainingClass::staticMethod
+            Function<String, Integer> parse = Integer::parseInt;
+
+            // 2. Instance method of particular object:
+            String prefix = "Hola";
+            Function<String, String> concat = prefix::concat;
+
+            // 3. Instance method of arbitrary object of particular type:
+            Stream<String> s = nombres.stream();
+            s.map(String::toUpperCase);  // cada String::toUpperCase
+
+            // 4. Constructor reference:
+            Supplier<ArrayList> listFactory = ArrayList::new;
+
+            // Lambdas con cuerpo bloque
+            Comparator<Integer> cmp = (a, b) -> {
+                if (a < b) return -1;
+                if (a > b) return 1;
+                return 0;
+            };
+            """,
+            q("¿Cuándo usar method reference vs lambda?",
+                "Method reference cuando llamas a un método existente que ya hace lo que necesitas (String::isBlank, System.out::println). Lambda cuando necesitas lógica personalizada que no es un método existente. Method reference es más conciso y preferido cuando es posible."),
+            q("¿Qué es effectively final?",
+                "Variables locales usadas dentro de una lambda deben ser effectively final (no modificadas después de su última asignación). El compilador lo exige. Esto es porque la lambda puede outlive el scope del método si se almacena. Garantiza thread-safety."),
+            q("¿Lambda vs Anonymous inner class?",
+                "Lambda tiene sintaxis más limpia. Anonymous class puede tener estado de instancia propio, múltiples métodos (si no es funcional), y puede acceder a variables del enclosing scope de forma diferente. Lambda no tiene estado propio; anonymous class sí.")
+        );
+        sc(functionalInterfaces, "Chaining y Compose", "functional-interface-chaining", 3,
+            "Methods default como andThen, compose, and, or para combinar funciones y predicates.",
+            """
+            // Function: andThen (ejecuta THIS primero, luego other)
+            Function<Integer, Integer> multiply = x -> x * 2;
+            Function<Integer, Integer> add = x -> x + 10;
+            Function<Integer, Integer> combined = multiply.andThen(add);
+            combined.apply(5);  // (5 * 2) + 10 = 20
+
+            // Function: compose (ejecuta other primero, luego THIS)
+            Function<Integer, Integer> composed = multiply.compose(add);
+            composed.apply(5);  // (5 + 10) * 2 = 30
+
+            // Predicate: and, or, negate
+            Predicate<String> startsWithA = s -> s.startsWith("A");
+            Predicate<String> endsWithZ = s -> s.endsWith("Z");
+            Predicate<String> aToZ = startsWithA.and(endsWithZ);
+            Predicate<String> notAZ = aToZ.negate();
+
+            // Consumer: andThen
+            Consumer<String> first = s -> System.out.println("1: " + s);
+            Consumer<String> second = s -> System.out.println("2: " + s);
+            Consumer<String> both = first.andThen(second);
+            both.accept("Hola");  // imprime ambas líneas
+            """,
+            q("¿andThen vs compose en Function?",
+                "f.andThen(g) ejecuta f y luego g sobre el resultado de f. f.compose(g) ejecuta g primero y luego f sobre el resultado de g. Ej: multiply.andThen(add) = add(multiply(x)). multiply.compose(add) = multiply(add(x))."),
+            q("¿Por qué usar chaining?",
+                "Permite construir pipelines de procesamiento sin clases intermedias. Más legible que nested anonymous classes. Facilita composición de comportamiento reusable. Patterns como decorator se implementan naturalmente.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
