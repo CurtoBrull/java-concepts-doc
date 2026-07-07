@@ -4438,6 +4438,155 @@ public class DataLoader implements CommandLineRunner {
                 "Usa -Xlog:gc*:file=gc.log para logging. jstat -gcutil <pid> 1000 para monitoring en tiempo real. VisualVM, JConsole, o Prometheus con JMX exporter para dashboards. GCEasy.io para analizar logs de GC.")
         );
 
+        // ===== PARALLEL STREAMS =====
+        Concept parallelStreams = concept("Parallel Streams", "parallel-streams", Block.JAVA_CORE, 34,
+            "Parallel Streams (Java 8+) ejecutan operaciones en paralelo usando el ForkJoinPool común. .parallel() convierte un stream secuencial en paralelo. Mismo código, diferentes resultados de rendimiento. No siempre es más rápido; puede ser más lento para operaciones simples o con poca data.",
+            null,
+            cq("¿Cómo funcionan los Parallel Streams?",
+                "Usan el ForkJoinPool.common() que usa todos los cores disponibles por defecto. El stream se divide en chunks (spliterator) y cada chunk se procesa en un thread diferente. Los resultados se combinan al final. El número de threads es Runtime.getRuntime().availableProcessors() - 1."),
+            cq("¿Cuándo usar Parallel Streams?",
+                "Cuando tienes operaciones CPU-bound sobre grandes datasets donde el orden no importa y la operación es suficientemente compleja para justificar el overhead de parallelización. Ej: transformación de datos masiva, cálculos sobre muchos elementos."),
+            cq("¿Cuándo NO usar Parallel Streams?",
+                "Operaciones simples (map, filter pequeños), I/O-bound operations, operaciones que deben mantener orden, streams muy pequeños (overhead > beneficio), cuando ya usas otros frameworks de concurrency.")
+        );
+        sc(parallelStreams, "Uso básico y ForkJoinPool", "parallel-streams-basico", 1,
+            "Cómo crear y usar parallel streams, y cómo customize el ForkJoinPool.",
+            """
+            List<Integer> lista = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+
+            // stream secuencial
+            lista.stream()
+                .map(x -> x * 2)
+                .collect(Collectors.toList());
+
+            // stream paralelo - mismo código, ejecución paralela
+            lista.parallelStream()
+                .map(x -> x * 2)
+                .collect(Collectors.toList());
+
+            // convertir stream a paralelo
+            lista.stream().parallel()
+                .map(x -> x * 2)
+                .collect(Collectors.toList());
+
+            // Parallel streams usan ForkJoinPool.common()
+            // Por defecto: n-1 threads donde n = CPU cores
+            System.out.println(ForkJoinPool.getCommonPool().getParallelism());  // usualmente 7 en 8-core
+
+            // CUSTOM ForkJoinPool para un stream específico
+            ForkJoinPool pool = new ForkJoinPool(4);
+            pool.submit(() ->
+                miLista.parallelStream()
+                    .map(...)
+                    .collect(...)
+            ).join();
+            pool.shutdown();
+            """,
+            q("¿Qué es el ForkJoinPool.common()?",
+                "Pool compartido usado por parallel streams por defecto. Tiene parallelism = max(1, CPU cores - 1). Es un daemon pool, terminado cuando la JVM acaba. Todos los parallel streams comparten este pool, lo que puede causar contención.")
+        );
+        sc(parallelStreams, "Orden y rendimiento", "parallel-streams-orden", 2,
+            "Parallel streams no garantizan orden de salida. El orden puede afectar el rendimiento.",
+            """
+            List<Integer> lista = List.of(1, 2, 3, 4, 5);
+
+            // findAny puede retourner cualquier elemento (más rapido)
+            lista.parallelStream().findAny();  // no determinista
+
+            // findFirst garantiza orden (más lento en parallel)
+            lista.parallelStream().findFirst();  // siempre el primero
+
+            // forEach es no ordenado en parallel
+            lista.parallelStream().forEach(System.out::println);  // orden no garantizado
+
+            // forEachOrdered garantiza orden
+            lista.parallelStream().forEachOrdered(System.out::println);  // orden de origen
+
+            //collect vs toList en parallel
+            List<String> result = lista.parallelStream()
+                .map(String::toUpperCase)
+                .toList();  // Java 16+, preserva orden de encuentro
+
+            // Collectors.toList() también preserva orden pero es deprecated en favor de toList()
+            """,
+            q("¿Por qué parallel stream puede ser más lento?",
+                "1) Overhead de crear y coordinar threads. 2) El dataset tiene que ser grande para compensar. 3) Operaciones simples como map/filter son tan rápidas que el overhead del pool no vale la pena. 4) Si la operación es synchronized internamente, pierdes paralelismo.")
+        );
+        sc(parallelStreams, "Pitfalls y errores comunes", "parallel-streams-pitfalls", 3,
+            "Errores comunes al usar parallel streams.",
+            """
+            // PITFALL 1: Usar parallel dentro de parallel
+            lista.parallelStream()
+                .map(x -> {
+                    // LLAMAR OTRO PARALLEL STREAM ES UN ERROR
+                    return otroLista.parallelStream()
+                        .map(...).collect(toList());  // NO HACER ESTO
+                })
+                .collect(toList());
+
+            // PITFALL 2: Variables compartidas (no thread-safe)
+            int count = 0;
+            lista.parallelStream().forEach(x -> count++);  // data race!
+            // SOLUCIÓN: usar atomic o reduce
+            AtomicInteger count = new AtomicInteger(0);
+            lista.parallelStream().forEach(x -> count.incrementAndGet());
+            // O mejor: usar collect
+            long count = lista.parallelStream().count();
+
+            // PITFALL 3: operaciones con side effects
+            List<String> results = new ArrayList<>();  // ArrayList no es thread-safe
+            lista.parallelStream()
+                .map(String::toUpperCase)
+                .forEach(results::add);  // DATA RACE!
+
+            // SOLUCIÓN: usar toList() o Collectors.toConcurrentMap()
+            List<String> safe = lista.parallelStream()
+                .map(String::toUpperCase)
+                .toList();  // inmutable, thread-safe
+            """,
+            q("¿Parallel streams son thread-safe?",
+                "El stream en sí sí, pero las operaciones que hagas pueden no serlo. ArrayList, HashMap, HashSet no son thread-safe para escritura concurrent. Usar Collections.synchronizedList() o Collectors.toConcurrentMap() o toList().")
+        );
+        sc(parallelStreams, "Cuándo sí y cuándo no", "parallel-streams-cuando", 4,
+            "Guía práctica: cuándo usar parallel streams.",
+            """
+            // USA PARALLEL STREAMS cuando:
+            // 1. Dataset grande (> 10000 elementos)
+            // 2. Operaciones CPU-bound (no I/O)
+            // 3. Orden no importa o usas findAny()
+            // 4. Operación es relativamente compleja (map + filter + collect con mucha lógica)
+
+            long resultado = LongStream.rangeClosed(1, 10_000_000)
+                .parallel()
+                .filter(n -> n % 2 == 0)
+                .map(n -> n * n)
+                .sum();
+
+            // NO USES PARALLEL STREAMS cuando:
+            // 1. Dataset pequeño (< 1000 elementos típicamente)
+            // 2. Operaciones rápidas (map identidad, filter con count)
+            // 3. I/O-bound (la operación bloquea esperando red/disco)
+            // 4. Necesitas orden estricto
+            // 5. Ya usas CompletableFuture u otro modelo de concurrency
+
+            // Ejemplo DONDE parallel ayuda:
+            List<Path> archivos = List.of(... thousands ...);
+            archivos.parallelStream()
+                .map(this::procesarArchivo)      // CPU-bound processing
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+
+            // Ejemplo DONDE parallel DAÑA:
+            List<String> pequenas = List.of("a", "b", "c");
+            pequenas.parallelStream()
+                .map(String::toUpperCase)        // tan rapido que overhead > beneficio
+                .collect(Collectors.toList());
+            """,
+            q("¿Parallel streams vs CompletableFuture?",
+                "Parallel streams: para operaciones CPU-bound sobre colecciones, más simple. CompletableFuture: para operaciones I/O-bound, chainingasync, handling errores complejo, composición de múltiples async tasks. CompletableFuture es más flexible; parallel streams es más simple para casos straightforward.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
