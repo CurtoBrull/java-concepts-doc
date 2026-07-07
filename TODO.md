@@ -31,7 +31,7 @@
 - [x] **DateTime API (Java 8+)** - LocalDateTime, ZonedDateTime, Instant, Duration, Period, ZoneId (IMPLEMENTADO)
 
 ### 🟢 MEJORAR CONTENIDO EXISTENTE
-- [ ] **equals y hashCode** (concepto "Objeto") - ampliar con código de implementación correcta
+- [x] **equals y hashCode** (concepto "Objeto") - ampliar con código de implementación correcta (IMPLEMENTADO)
 - [x] **interfaces** - ampliar con @FunctionalInterface y ejemplos de lambda (IMPLEMENTADO)
 
 ### Conceptos Java Core YA IMPLEMENTADOS
