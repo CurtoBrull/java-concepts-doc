@@ -10,7 +10,7 @@
 
 ### 🔴 FALTAN (preguntas frecuentes en entrevistas)
 - [x] **String vs StringBuilder vs StringBuffer** - inmutabilidad, rendimiento, sincronización (IMPLEMENTADO)
-- [ ] **equals() y hashCode()** - contrato, importancia en HashMap/HashSet, cómo implementarlos correctamente
+- [x] **equals() y hashCode()** - contrato, importancia en HashMap/HashSet, cómo implementarlos correctamente (IMPLEMENTADO)
 - [x] **Optional\<T\>** - evitar NullPointerException, orElse vs orElseGet, ifPresent (IMPLEMENTADO)
 - [x] **Virtual Threads** - Project Loom, lightweight threads, blocking, pinning, structured concurrency (IMPLEMENTADO)
 - [x] **Sealed Classes (Java 17)** - restringir herencia, permits, useful para switch expressions (IMPLEMENTADO)
