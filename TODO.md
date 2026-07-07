@@ -12,9 +12,9 @@
 - [x] **String vs StringBuilder vs StringBuffer** - inmutabilidad, rendimiento, sincronización (IMPLEMENTADO)
 - [ ] **equals() y hashCode()** - contrato, importancia en HashMap/HashSet, cómo implementarlos correctamente
 - [x] **Optional\<T\>** - evitar NullPointerException, orElse vs orElseGet, ifPresent (IMPLEMENTADO)
-- [ ] **CompletableFuture** - async programming, chaining, handling errores
+- [x] **Virtual Threads** - Project Loom, lightweight threads, blocking, pinning, structured concurrency (IMPLEMENTADO)
 - [x] **Sealed Classes (Java 17)** - restringir herencia, permits, useful para switch expressions (IMPLEMENTADO)
-- [ ] **Pattern Matching for switch (Java 21)** - expresiones de switch mejoradas
+- [x] **Pattern Matching for switch (Java 21)** - expresiones de switch mejoradas (IMPLEMENTADO)
 - [ ] **Record** - ampliar explicación (cláusula canónica, métodos personalizados, immutable)
 - [x] **BigDecimal** - precisión decimal, compareTo vs equals, rounding modes (IMPLEMENTADO)
 - [x] **Local-Variable Type Inference (var)** - Java 10+, limitaciones, buenas prácticas (IMPLEMENTADO)
