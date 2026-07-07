@@ -3758,6 +3758,123 @@ public class DataLoader implements CommandLineRunner {
                 "Sí: 1) Más portable entre lenguajes. 2) Legible/debuggable. 3) No requiere Serializable en todas partes. 4) Convierte a JSON string y back. No: 1) Más lento que binary serialization. 2) Date/Time handling diferente. 3) transient fields no se copian.")
         );
 
+        // ===== PATTERN MATCHING FOR SWITCH =====
+        Concept patternMatchingSwitch = concept("Pattern Matching for switch", "pattern-matching-switch", Block.JAVA_CORE, 29,
+            "Pattern Matching for switch (Java 21 standard) combina pattern matching con switch expressions. Permite hacer cast implícito en cada case, extraer componentes de records, y hacer switch exhaustivo sobre tipos sealed. Reduce boilerplate de instanceof + cast.",
+            null,
+            cq("¿Qué es Pattern Matching for switch?",
+                "Permite usar patterns en las labels de switch: 'case String s ->' hace instanceof check + cast + bind a variable en una expresión. Si el objeto es String, s ya es String (cast implícito). También soporta record patterns, null handling, y guards (condiciones adicionales en el case)."),
+            cq("¿Cómo se diferencia del instanceof + cast tradicional?",
+                "Antes: if (obj instanceof String) { String s = (String) obj; ... } Con pattern matching: if (obj instanceof String s) { ... s ya es String ... }. En switch es similar pero para múltiples tipos: case Integer i, case String s -> 处理 diferentes tipos sin cast manual."),
+            cq("¿Qué es exhaustive switch con sealed classes?",
+                "Switch sobre sealed classes DEBE cubrir todos los permits o tener default. El compilador强制 coverage. Si añades nueva subclase y no actualizas el switch, error de compilación. Esto es type-safe: ningún caso inadvertidamente no manejado.")
+        );
+        sc(patternMatchingSwitch, "Sintaxis básica", "pattern-switch-basico", 1,
+            "Forma básica de pattern matching en switch.",
+            """
+            // Java 21 - Pattern Matching for switch
+            public String describe(Object obj) {
+                return switch (obj) {
+                    case Integer i     -> \"Entero: \" + i;
+                    case String s      -> \"String: \" + s.length() + \" chars\";
+                    case null          -> \"Es null\";
+                    default            -> \"Otro tipo\";
+                };
+            }
+
+            // Equivalente ANTES de Java 21:
+            public String describeOld(Object obj) {
+                if (obj == null) return \"Es null\";
+                if (obj instanceof Integer) {
+                    Integer i = (Integer) obj;
+                    return \"Entero: \" + i;
+                }
+                if (obj instanceof String) {
+                    String s = (String) obj;
+                    return \"String: \" + s.length() + \" chars\";
+                }
+                return \"Otro tipo\";
+            }
+
+            // Con record pattern
+            record Point(int x, int y) {}
+            public String locate(Object obj) {
+                return switch (obj) {
+                    case Point(int x, int y) when x == 0 && y == 0 -> \"Origen\";
+                    case Point(int x, int y) when y == 0           -> \"Eje X: \" + x;
+                    case Point(int x, int y) when x == 0           -> \"Eje Y: \" + y;
+                    case Point p                                      -> \"Punto: \" + p;
+                };
+            }
+            """,
+            q("¿Qué significa 'when' en pattern matching?",
+                "when añade una condición (guard) al pattern. case Point(int x, int y) when x == 0 && y == 0 solo matchea si además de ser Point, las coordenadas cumplen la condición. Sin when, cada pattern se considera en orden. Con when, puedes tener múltiples cases para el mismo tipo con diferentes condiciones."),
+            q("¿null se maneja diferente en switch?",
+                "Sí. Antes de Java 21, null en switch lanzaba NullPointerException. Ahora puedes escribir case null -> explícitamente para manejar null. case null, String s -> maneja ambos null y String en el mismo case. El null case debe ser el primero o ir junto a otro case.")
+        );
+        sc(patternMatchingSwitch, "Record Patterns", "pattern-switch-records", 2,
+            "Extraer componentes de records directamente en el case.",
+            """
+            record Persona(String nombre, int edad, Direccion dir) {}
+            record Direccion(String calle, String ciudad) {}
+
+            public String formatear(Object obj) {
+                return switch (obj) {
+                    // Extrae campos del record directamente
+                    case Persona(String nombre, int edad, Direccion(String calle, _))
+                        when edad >= 18 ->
+                        nombre + \" adulto, \" + calle;
+
+                    case Persona(String nombre, int edad, _) ->
+                        nombre + \" menor\";
+
+                    // Ignorar campos con _
+                    case int[] arr when arr.length > 0 ->
+                        \"Array de \" + arr.length + \" elementos\";
+
+                    default -> \"Otro\";
+                };
+            }
+
+            // Null handling
+            public String test(Object obj) {
+                return switch (obj) {
+                    case null, String s when s.isEmpty() -> \"Vacío\";
+                    case String s                       -> s;
+                };
+            }
+            """,
+            q("¿Qué es 'when' guard en record patterns?",
+                "when permite añadir condición booleana al pattern. case Persona(...) when edad >= 18 solo matchea si además de ser Persona, la edad es >= 18. Puedes combinar múltiples fields: when x > 0 && y > 0. El guard hace el switch más expresivo sin necesidad de cases separados."),
+            q("¿Se puede usar _ para ignorar campos en record patterns?",
+                "Sí. _ es 'unnamed pattern' (Java 21) que ignora ese componente. case Persona(String nombre, int edad, _) ignora la dirección completa. Puedes anidar: Direccion(String calle, _) ignora ciudad dentro de la dirección.")
+        );
+        sc(patternMatchingSwitch, "Sealed Classes y Exhaustiveness", "pattern-switch-sealed", 3,
+            "Combinar pattern matching con sealed classes para exhaustive switches.",
+            """
+            sealed interface Expr permits Literal, Add, Mul {}
+            record Literal(int value) implements Expr {}
+            record Add(Expr left, Expr right) implements Expr {}
+            record Mul(Expr left, Expr right) implements Expr {}
+
+            public int evaluate(Expr expr) {
+                return switch (expr) {
+                    case Literal(int v)             -> v;
+                    case Add(Expr l, Expr r)        -> evaluate(l) + evaluate(r);
+                    case Mul(Expr l, Expr r)       -> evaluate(l) * evaluate(r);
+                    // NO default necesario: compiler sabe que están TODOS los casos
+                };
+            }
+
+            // ERROR de compilación si olvidas un case!
+            // Si añades Div(Expr, Expr) a Expr, todos los switches sin case Div fallan
+            """,
+            q("¿Por qué es importante que el switch sea exhaustive?",
+                "Si cubres todos los casos, el compilador te ayuda. Si mañana añades una nueva subclase a Expr (ej: Div), el compilador marca TODOS los switches que no manejen Div como error. Es refactoring seguro: no puedes olvidarte de un caso. Sin exhaustiveness, tendrías default que silencia el warning."),
+            q("¿Sealed class con sealed interface hierarchy?",
+                "Sí. Sealed puede tener subclases sealed, final o non-sealed. Un sealed interface puede tener implementadores sealed, final o non-sealed. El compilador mantiene la jerarquía cerrada en todos los niveles. Útil para modeling de expresiones, estados, o cualquier jerarquía cerrada.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
