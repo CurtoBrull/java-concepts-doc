@@ -3317,6 +3317,130 @@ public class DataLoader implements CommandLineRunner {
                 "Sí, pero evita usarlo. if (opt.isPresent()) { return opt.get(); } es más largo que opt.orElse(). Solo usa isPresent() si necesitas hacer DOS cosas diferentes: una si presente y otra si ausente, no solo devolver el valor. Para eso es mejor ifPresentOrElse().")
         );
 
+        // ===== SEALED CLASSES =====
+        Concept sealedClasses = concept("Sealed Classes", "sealed-classes", Block.JAVA_CORE, 25,
+            "Sealed classes (Java 17) restringen qué clases pueden heredar de una clase o implementar una interfaz. Sedeclaran con 'sealed' y 'permits' para listar las subclases permitidas. El compilador conoce todas las subclases en compile-time, permitiendo exhaustive switch expressions y mejor exhaustiveness checking.",
+            null,
+            cq("¿Qué problema resuelven las Sealed Classes?",
+                "Antes de sealed, cualquier clase podía extender cualquier clase (salvo final). Esto hacía difícil garantizar en compile-time que todas las subclases estaban cubiertas en un switch o cuando se usaban pattern matching. Sealed fuerza una jerarquía cerrada: solo las clases permitidas pueden extender/teor. El compilador puede verificar exhaustivamente."),
+            cq("¿Cuál es la diferencia entre sealed, final y abstract?",
+                "final: nadie puede heredar. sealed: solo las clases 'permits' pueden heredar, y esas deben ser final, sealed o non-sealed. abstract: puede heredarse libremente. sealed combina restricción Y flexibilidad controlada:密封 pero con subclases explícitas."),
+            cq("¿Qué significa 'exhaustive switch'?",
+                "Un switch sobre tipos sealed DEBE cubrir todos los casos permitidos (o tener default). Si olvidas un caso, el compilador error. Esto es typesafe: no puedes olvidarte de un caso. Muy útil con pattern matching en switch (Java 21+).")
+        );
+        sc(sealedClasses, "Sintaxis básica", "sealed-basico", 1,
+            "Sealed class declara qué subclases pueden extender. Cada subclase debe ser final, sealed o non-sealed.",
+            """
+            // Clase sellada: solo Circle, Square, Rectangle pueden extenderla
+            public sealed class Shape permits Circle, Square, Rectangle {
+                public abstract double area();
+            }
+
+            // Subclase final: no puede ser extendida
+            public final class Circle extends Shape {
+                private double radius;
+                public Circle(double radius) { this.radius = radius; }
+                public double area() { return Math.PI * radius * radius; }
+            }
+
+            // Subclase sealed: puede ser extendida solo por las que ella permita
+            public sealed class Rectangle extends Shape permits ColoredRectangle {
+                private double width, height;
+                public Rectangle(double w, double h) { width = w; height = h; }
+                public double area() { return width * height; }
+            }
+
+            // Subclase non-sealed: queda abierta, cualquiera puede extender
+            public non-sealed class Square extends Rectangle {
+                private double side;
+                public Square(double side) { super(side, side); this.side = side; }
+            }
+
+            // ColoredRectangle puede extender Square (que es non-sealed)
+            public class ColoredRectangle extends Square {
+                private String color;
+                // ...
+            }
+            """,
+            q("¿Por qué cada subclase debe ser final, sealed o non-sealed?",
+                "Porque sealed define una jerarquía CERRADA. Cada subclase decide cómo continuar: final (cierra la rama), sealed (continue sellando hacia abajo), non-sealed (abre la jerarquía de nuevo). Si no especificaras esto, el compilador no sabría si puedes seguir heredando."),
+            q("¿Sealed funciona con interfaces?",
+                "Sí. Sealed interface restringe qué implementaciones puede tener. sealed interface Expr permits AddExpr, MulExpr, NumExpr {}. Las implementaciones deben ser final, sealed o non-sealed.")
+        );
+        sc(sealedClasses, "Pattern Matching Exhaustivo", "sealed-pattern-matching", 2,
+            "Java 17 permite switch expressions que son exhaustivas sobre tipos sealed. El compilador verifica que cubres todos los casos.",
+            """
+            // Java 21+ switch con pattern matching (exhaustive)
+            public String describe(Shape s) {
+                return switch (s) {
+                    case Circle c    -> \"Círculo radio=\" + c.radius();
+                    case Square sq   -> \"Cuadrado lado=\" + sq.side();
+                    case Rectangle r -> \"Rectángulo \" + r.width() + \"x\" + r.height();
+                    // No necesita default: el compilador sabe que están TODOS los casos
+                };
+            }
+
+            // Java 17 (sin pattern matching):
+            public String describe(Shape s) {
+                if (s instanceof Circle) {
+                    Circle c = (Circle) s;
+                    return \"Círculo\";
+                } else if (s instanceof Square) {
+                    return \"Cuadrado\";
+                } // ...
+            }
+
+            // null en sealed switch
+            public String describeWithNull(Shape s) {
+                return switch (s) {
+                    case null         -> \"Es null\";
+                    case Circle c     -> \"Círculo\";
+                    case Square sq    -> \"Cuadrado\";
+                    // null debe manejarse explícitamente desde Java 21
+                };
+            }
+            """,
+            q("¿Qué es exhaustive checking?",
+                "El compilador verifica que un switch sobre tipos sealed cubra TODOS los casos permitidos. Si olvidas uno, error de compilación. Esto es mejor que default (que silenciosamente podría no cubrir un caso nuevo). Es typesafe: si añades una nueva subclase, todos los switches que no la cubran fallan en compilación."),
+            q("¿Sealed class puede ser abstract?",
+                "Sí. Puede tener métodos abstractos. Las subclases concretas deben implementarlos. Una sealed abstract Shape con método abstract area() obliga a cada subclase a proporcionar el cálculo.")
+        );
+        sc(sealedClasses, "Uso con Records y Pattern Matching", "sealed-records", 3,
+            "Records y sealed classes se complementan bien. Records son final e inmutables por defecto, ideales como subclases de sealed.",
+            """
+            // Sealed + Records: combinación poderosa
+            public sealed interface Operation permits Add, Multiply, Constant {
+                double apply(double x, double y);
+            }
+
+            public record Add() implements Operation {
+                public double apply(double x, double y) { return x + y; }
+            }
+
+            public record Multiply() implements Operation {
+                public double apply(double x, double y) { return x * y; }
+            }
+
+            public record Constant(double value) implements Operation {
+                public double apply(double x, double y) { return value; }
+            }
+
+            // El compilador sabe que solo hay 3 operaciones
+            public double eval(Operation op, double x, double y) {
+                return switch (op) {
+                    case Add a        -> a.apply(x, y);
+                    case Multiply m   -> m.apply(x, y);
+                    case Constant c   -> c.value();
+                    // Exhaustive: ningún otro caso posible
+                };
+            }
+            """,
+            q("¿Por qué usar records como subclases de sealed?",
+                "Records son final, inmutables y concisos. Ideales para representar variantes de datos. Add() sin estado, Constant(double value) con estado. El compilador genera equals/hashCode/toString automáticamente. Juntos, sealed + record dan: типовая безопасность + immutabilidad + minimal código."),
+            q("¿Sealed vs enum para qué?",
+                "Enum: cuando tienes un conjunto CERRADO de instancias predefinidas (LUNES, MARTES...). Enum es singleton por valor. Sealed: cuando tienes un conjunto CERRADO de TIPOS (subclases), cada una con su propio estado. Enum no puede tener subclases; sealed sí puede tener jerarquía.")
+        );
+
         // ===== SERVLETS Y FILTROS =====
         Concept servletsFiltros = concept("Servlets y Filtros", "servlets-filtros", Block.SPRING, 6,
             "Servlets son la base de las aplicaciones web Java. Reciben y responden peticiones HTTP. Los filtros interceptan peticiones antes de llegar al servlet, útiles para logging, seguridad y codificación.",
